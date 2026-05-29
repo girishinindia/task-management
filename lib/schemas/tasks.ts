@@ -2,6 +2,7 @@
  * Zod schemas for task CRUD. Shared by the form, the API routes, and the DAO.
  */
 import { z } from "zod";
+import { isValidDateString } from "@/lib/date";
 
 export const TASK_STATUSES = [
   "pending",
@@ -14,7 +15,8 @@ export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 
 const isoDate = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+  .refine(isValidDateString, "Enter a real date between 2000 and 2100");
 
 /** Treat "" as undefined so empty date inputs don't trip the regex. */
 const optionalDate = z

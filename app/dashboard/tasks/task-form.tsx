@@ -194,12 +194,20 @@ export function TaskForm({
           <Input
             id="start_date"
             type="date"
+            min="2000-01-01"
+            max="2100-12-31"
             {...form.register("start_date")}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="due_date">Due date</Label>
-          <Input id="due_date" type="date" {...form.register("due_date")} />
+          <Input
+            id="due_date"
+            type="date"
+            min="2000-01-01"
+            max="2100-12-31"
+            {...form.register("due_date")}
+          />
           {form.formState.errors.due_date ? (
             <p className="text-xs text-destructive">
               {form.formState.errors.due_date.message}

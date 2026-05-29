@@ -127,6 +127,8 @@ export function DateActivationDialog({
             <Input
               id="date"
               type="date"
+              min="2000-01-01"
+              max="2100-12-31"
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />

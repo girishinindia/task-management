@@ -2,6 +2,7 @@
  * Zod schemas for admin operations. Reused by client dialogs and server routes.
  */
 import { z } from "zod";
+import { isValidDateString } from "@/lib/date";
 
 const password = z
   .string()
@@ -32,7 +33,8 @@ export const adminUpdateUserSchema = z
 
 const dateOnly = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+  .refine(isValidDateString, "Enter a real date between 2000 and 2100");
 
 export const dateStatusSchema = z.object({
   date: dateOnly,

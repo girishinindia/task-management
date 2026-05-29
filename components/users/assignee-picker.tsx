@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "./user-avatar";
 import { cn } from "@/lib/utils";
+import { isValidDateString } from "@/lib/date";
 
 export interface AssigneeOption {
   id: string;
@@ -53,10 +54,16 @@ export function AssigneePicker({
     async function load() {
       setLoading(true);
       try {
-        const url = dueDate ? `/api/users?date=${dueDate}` : `/api/users`;
+        // Only pass the date when it's valid; otherwise omit it so a mis-keyed
+        // value can't trigger a 500 we'd then fail to parse as JSON.
+        const url = isValidDateString(dueDate)
+          ? `/api/users?date=${encodeURIComponent(dueDate)}`
+          : `/api/users`;
         const res = await fetch(url);
-        const data = await res.json();
-        if (!cancelled) setUsers(data.users ?? []);
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        if (!cancelled) setUsers(data?.users ?? []);
+      } catch {
+        if (!cancelled) setUsers([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
