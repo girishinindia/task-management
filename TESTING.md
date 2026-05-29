@@ -21,6 +21,22 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 - Date-based views (Today, Calendar, date filters)
 - Roles and permissions (admin vs user)
 
+### Permission model (the key rule)
+
+**Only admins** can create, edit, delete, reassign (transfer), and manage assignees on tasks. **Regular users** can view tasks assigned to them, submit status reports (change status + add a note), and add/remove their own attachments — but never edit the task itself. This is enforced in the API (direct calls are rejected with **403**), not just hidden in the UI.
+
+| Action | Admin | Regular user (assignee) |
+|---|:---:|:---:|
+| Create task | ✅ | ❌ |
+| Edit task fields (title, dates, priority, description) | ✅ | ❌ (read-only) |
+| Delete task | ✅ | ❌ |
+| Transfer / reassign | ✅ | ❌ |
+| Add / remove assignees | ✅ | ❌ |
+| Change status (submit status report) | ✅ | ✅ |
+| Add attachments | ✅ | ✅ |
+| Remove attachments | ✅ (any) | ✅ (only ones they uploaded) |
+| View task | ✅ (all) | ✅ (only assigned) |
+
 ---
 
 ## 2. Before you start (prerequisites)
@@ -109,7 +125,7 @@ Each step lists the **action** and the **expected result** (✅). Tick the check
 
 ### Flow 3 — Create the seed tasks
 
-You can create tasks as the Admin (Window A) or as each user. To keep it simple, create them all as **Admin**.
+Only admins can create tasks, so create all of these as **Admin** (Window A). Regular users have no "New task" button, and visiting `/dashboard/tasks/new` redirects them to the dashboard (verified in Flow 11).
 
 1. In **Window A**, sidebar → **All tasks** → **New task** (or use **New task** on the dashboard).
 2. Create **Task 1**: Title `Design new landing page hero`, a short description, **Priority** = High, **Start date** = today, **Due date** = today + 2 days. Under **Assignees**, pick **Priya**. Click **Create task**. ✅ Redirected to the task detail page; status shows **Pending**; Priya listed under assignees.
@@ -119,7 +135,7 @@ You can create tasks as the Admin (Window A) or as each user. To keep it simple,
 ### Flow 4 — Multi-user visibility & assignment
 
 1. **Window A (Admin)** → **All tasks**. ✅ All 7 tasks are visible (admins see everything).
-2. **Window B (Priya)** → **All tasks**. ✅ Priya sees only tasks she created or is assigned to — **Task 1** and **Task 5**. She does **not** see Rahul's tasks (2, 6, 7).
+2. **Window B (Priya)** → **All tasks**. ✅ Priya sees only tasks assigned to her — **Task 1** and **Task 5**. She does **not** see Rahul's tasks (2, 6, 7). (Regular users can't create tasks, so they only ever see their own assignments.)
 3. **Window C (Rahul)** → **All tasks**. ✅ Rahul sees **Tasks 2, 6, 7** (and 5 only if assigned — he isn't, so not 5).
 4. As Priya, use the **scope** filter (Created / Assigned / All) on the tasks page. ✅ Filtering by "Assigned to me" shows Task 1 and Task 5.
 
@@ -135,13 +151,14 @@ You can create tasks as the Admin (Window A) or as each user. To keep it simple,
 1. **Window A (Admin)** → open **Task 4 (QA the checkout flow)** → **Transfer**. Move from **Karan** to **Priya**, reason = `Karan is on leave`. Confirm. ✅ Assignee changes to Priya; a **transfer timeline** entry records from → to, the reason, who did it, and when.
 2. **Window B (Priya)** → **All tasks** / **bell**. ✅ Task 4 now appears for Priya, and she receives a **task transferred / assigned** notification.
 3. ✅ Karan no longer sees Task 4 in his list (verify by signing in as Karan in a spare Incognito window if desired).
+4. **Regular users can't transfer.** In **Window B (Priya)**, open a task she's assigned to. ✅ There is **no Transfer button** — transferring is admin-only.
 
 ### Flow 7 — Attachments (file + URL)
 
 1. **Window B (Priya)** → open **Task 1** → **Attachments** section → **upload a file** (e.g. a small PNG or PDF, under 50 MB). ✅ The file uploads and shows with a working link served from the Bunny CDN (`cdn.growupmore.com`). Files are public links (token authentication is off).
 2. Add a **URL link** attachment: paste `https://www.figma.com` with label `Design file`. ✅ The link appears with its label and opens in a new tab.
 3. Try an invalid URL (`not-a-url`) and an oversized/blocked file type. ✅ Each is rejected with a clear message.
-4. Remove an attachment. ✅ It disappears from the list.
+4. Remove an attachment **you uploaded**. ✅ It disappears. (A regular user only sees the delete icon on attachments they added; admins can remove any.)
 
 ### Flow 8 — Notifications (bell, list, live SSE)
 
@@ -167,9 +184,19 @@ You can create tasks as the Admin (Window A) or as each user. To keep it simple,
 
 ### Flow 11 — Permissions & authorization
 
-1. As **Priya** (Window B), manually visit `/admin/users` in the address bar. ✅ You're blocked/redirected — regular users can't reach admin pages.
-2. As **Priya**, try to open a task you're not on by guessing a URL like `/dashboard/tasks/<some-other-id>` (copy an id Rahul-only task from Window C). ✅ Access is denied / not found — you only see tasks you created or are assigned to.
-3. ✅ A deactivated user (Karan, from Flow 10) cannot log in.
+Run these as **Priya** (Window B), a regular user — this is the core test of the admin-only rule.
+
+1. **No create.** ✅ There's no **New task** button on the dashboard, Today, or All tasks pages. Manually visit `/dashboard/tasks/new` in the address bar → ✅ you're redirected to `/dashboard`.
+2. **Read-only task.** Open **Task 1** (assigned to Priya). ✅ It renders as a **read-only view**: no Edit form, no **Delete**, no **Transfer**, and the Assignees section has **no Manage button**. ✅ The **status menu** and **Attachments** (Upload / Add URL) *are* available.
+3. **Submit a status report.** Change Task 1's status (e.g. → In progress) and add a note. ✅ It saves and shows in the activity timeline — this is the one change a regular user can make to a task.
+4. **Admin pages blocked.** Visit `/admin/users` in the address bar. ✅ You're redirected — regular users can't reach admin pages.
+5. **Can't see others' tasks.** Try opening a task you're not assigned to (copy a Rahul-only task id from Window C into `/dashboard/tasks/<id>`). ✅ Not found — you only see your own assignments.
+6. **The API is the real boundary (optional, thorough).** In Priya's browser DevTools console, call a mutation directly:
+   ```js
+   fetch("/api/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(r => r.status)
+   ```
+   ✅ Returns **403**. The same holds for `PATCH`/`DELETE /api/tasks/[id]`, `/transfer`, and `/assignments` — the buttons are hidden *and* the server rejects non-admins, so it can't be bypassed.
+7. ✅ A deactivated user (Karan, from Flow 10) cannot log in.
 
 ### Flow 12 — Auth edge cases & session
 
@@ -197,8 +224,8 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Admin sees all tasks; each user sees only created/assigned
 - [ ] Scope filter (Created/Assigned/All) works
 - [ ] Status changes work and are recorded in the activity timeline
-- [ ] Task edit (priority/dates/description) saves
-- [ ] Transfer reassigns the task and logs the audit trail + reason
+- [ ] Task edit (priority/dates/description) saves (admin)
+- [ ] Transfer reassigns the task and logs the audit trail + reason (admin only)
 - [ ] File upload works (public CDN link); URL attachment works; invalid input rejected; removal works
 - [ ] Notifications fire on assign / transfer / status change
 - [ ] Bell updates live (SSE) without refresh; mark-as-read + mark-all-read work
@@ -209,6 +236,10 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Search filters by title
 - [ ] Per-date activation blocks assignment on inactive dates
 - [ ] Edit user works; deactivating an account force-logs-out and blocks login
+- [ ] Only admins can create/edit/delete/transfer/assign — buttons hidden AND API returns 403 for regular users
+- [ ] Regular user gets a read-only task (no Edit/Delete/Transfer/Manage assignees)
+- [ ] Regular user CAN submit a status report and add/remove their own attachments
+- [ ] `/dashboard/tasks/new` redirects regular users to the dashboard
 - [ ] Regular user cannot reach /admin or other users' tasks
 - [ ] Logout works; session persists across refresh
 - [ ] Dark mode, empty states, and responsive layout look correct
