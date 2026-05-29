@@ -20,15 +20,29 @@ import {
   countUnread,
   ensureDueReminders,
   listNotifications,
+  notificationCountsByType,
   type NotificationRow,
 } from "@/lib/dao/notifications";
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_TYPE_LABEL,
+  NOTIFICATION_TYPES,
+  isNotificationCategory,
+  typesForCategory,
+} from "@/lib/notification-types";
 import { MarkAllReadButton } from "./mark-all-read-button";
+import { NotificationsFilters } from "./notifications-filters";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Notifications" };
 export const dynamic = "force-dynamic";
 
-type SP = { scope?: "all" | "unread" };
+type SP = {
+  scope?: "all" | "unread";
+  category?: string;
+  type?: string;
+  q?: string;
+};
 
 function iconForType(type: string) {
   if (type === "task_assigned") return UserPlus2;
@@ -91,6 +105,17 @@ export default async function NotificationsPage({
 }) {
   const me = await requireUser();
   const scope = searchParams.scope === "unread" ? "unread" : "all";
+  const category = isNotificationCategory(searchParams.category)
+    ? (searchParams.category as string)
+    : "all";
+  const specificType =
+    searchParams.type && NOTIFICATION_TYPE_LABEL[searchParams.type]
+      ? searchParams.type
+      : "all";
+  const q = searchParams.q?.trim() || "";
+
+  // A specific type overrides a category grouping.
+  const types = specificType !== "all" ? [specificType] : typesForCategory(category);
 
   try {
     await ensureDueReminders(me.userId);
@@ -98,10 +123,40 @@ export default async function NotificationsPage({
     /* non-fatal */
   }
 
-  const [rows, unread] = await Promise.all([
-    listNotifications(me.userId, { scope, limit: 100 }),
+  const [rows, unread, countsByType] = await Promise.all([
+    listNotifications(me.userId, {
+      scope,
+      types,
+      search: q || null,
+      limit: 100,
+    }),
     countUnread(me.userId),
+    notificationCountsByType(me.userId, { scope, search: q || null }),
   ]);
+
+  const totalCount = Object.values(countsByType).reduce((a, b) => a + b, 0);
+  const categoryChips = NOTIFICATION_CATEGORIES.map((c) => ({
+    key: c.key,
+    label: c.label,
+    count: c.types.reduce((sum, t) => sum + (countsByType[t] ?? 0), 0),
+  }));
+  const typeOptions = NOTIFICATION_TYPES.map((t) => ({
+    value: t,
+    label: NOTIFICATION_TYPE_LABEL[t],
+    count: countsByType[t] ?? 0,
+  }));
+  const filtersActive = category !== "all" || specificType !== "all" || !!q;
+
+  // Tab links must preserve the active category/type/search.
+  function tabHref(scopeValue: "all" | "unread"): string {
+    const p = new URLSearchParams();
+    if (scopeValue === "unread") p.set("scope", "unread");
+    if (category !== "all") p.set("category", category);
+    if (specificType !== "all") p.set("type", specificType);
+    if (q) p.set("q", q);
+    const s = p.toString();
+    return s ? `/dashboard/notifications?${s}` : "/dashboard/notifications";
+  }
 
   const groups = groupByDay(rows);
 
@@ -113,35 +168,40 @@ export default async function NotificationsPage({
             Notifications
           </h1>
           <p className="text-sm text-muted-foreground">
-            {rows.length === 0
-              ? scope === "unread"
-                ? "No unread notifications."
-                : "No notifications yet."
-              : `${rows.length} in this view · ${unread} unread total`}
+            {`${rows.length} shown · ${unread} unread total`}
           </p>
         </div>
         <MarkAllReadButton disabled={unread === 0} />
       </header>
 
       <nav className="flex items-center gap-1 border-b">
-        <TabLink href="/dashboard/notifications" active={scope === "all"}>
+        <TabLink href={tabHref("all")} active={scope === "all"}>
           All
         </TabLink>
-        <TabLink
-          href="/dashboard/notifications?scope=unread"
-          active={scope === "unread"}
-        >
+        <TabLink href={tabHref("unread")} active={scope === "unread"}>
           Unread{unread > 0 ? ` (${unread})` : ""}
         </TabLink>
       </nav>
 
+      <NotificationsFilters
+        defaultQ={q}
+        defaultCategory={category}
+        defaultType={specificType}
+        categories={categoryChips}
+        totalCount={totalCount}
+        typeOptions={typeOptions}
+      />
+
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-muted/30 px-6 py-16 text-center shadow-soft">
           <Inbox className="mx-auto h-6 w-6 text-muted-foreground" />
-          <p className="mt-3 text-sm font-medium">All caught up.</p>
+          <p className="mt-3 text-sm font-medium">
+            {filtersActive ? "No matches." : "All caught up."}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            When you&apos;re assigned a task, receive a transfer, or a task you
-            own changes status, it&apos;ll show up here.
+            {filtersActive
+              ? "No notifications match your search or filters. Try clearing them."
+              : "When you're assigned a task, receive a transfer, or a task you own changes status, it'll show up here."}
           </p>
         </div>
       ) : (

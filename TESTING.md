@@ -187,6 +187,7 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 2. **Window B** → click the **bell** → open **Notifications**. ✅ Items are grouped by day; unread ones are highlighted with a dot.
 3. Click a notification. ✅ It navigates to the related task and marks that item read.
 4. Click **Mark all read**. ✅ Unread count drops to 0; the **All / Unread** tabs filter correctly.
+5. **Search + smart filters.** On the Notifications page: type in the **search box** (matches title/body) ✅ the list narrows live. Click a **category chip** (Tasks / Reminders / Comments / Files / Admin) ✅ only that group shows, and each chip shows its **count**. Use the **type** dropdown for a precise type (e.g. "Overdue"); ✅ it overrides the category. Filters + search **combine with the All/Unread tab** and survive switching tabs; **Clear** resets them.
 
 ### Flow 9 — Date-based views
 
@@ -319,6 +320,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] File upload works (public CDN link); URL attachment works; invalid input rejected; removal works
 - [ ] Notifications fire on assign / transfer / status change
 - [ ] Bell updates live (SSE) without refresh; mark-as-read + mark-all-read work
+- [ ] Notifications page: search (title/body), category chips with counts, and precise type filter all work and combine with the All/Unread tab
 - [ ] Today view groups tasks; no-date bucket shown
 - [ ] Overdue badge appears for past-due open tasks
 - [ ] Calendar places tasks on due dates; days with tasks show a count hint + tooltip; day view opens

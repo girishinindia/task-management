@@ -23,6 +23,10 @@ export interface NotificationRow {
 export interface ListNotificationsOptions {
   /** "all" returns everything, "unread" filters is_read = false. */
   scope?: "all" | "unread";
+  /** Restrict to these notification types (e.g. a category's types). */
+  types?: string[] | null;
+  /** Case-insensitive match against title OR body. */
+  search?: string | null;
   limit?: number;
   offset?: number;
 }
@@ -34,14 +38,46 @@ export async function listNotifications(
   const onlyUnread = opts.scope === "unread";
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
+  const types = opts.types && opts.types.length > 0 ? opts.types : null;
+  const search = opts.search?.trim();
+  const like = search ? `%${search.toLowerCase()}%` : null;
   return sql<NotificationRow[]>`
     select id, user_id, type, title, body, link, is_read, created_at
       from task.notifications
      where user_id = ${userId}::uuid
        and (${onlyUnread}::bool = false or is_read = false)
+       and (${types}::text[] is null or type = any(${types}::text[]))
+       and (${like}::text is null
+            or lower(title) like ${like}::text
+            or lower(coalesce(body, '')) like ${like}::text)
      order by created_at desc, id desc
      limit ${limit} offset ${offset}
   `;
+}
+
+/** Per-type counts for the current user, honouring scope + search but NOT the
+ *  type filter (so category chips can show their totals). Returns a map of
+ *  notification type → count. */
+export async function notificationCountsByType(
+  userId: string,
+  opts: { scope?: "all" | "unread"; search?: string | null } = {}
+): Promise<Record<string, number>> {
+  const onlyUnread = opts.scope === "unread";
+  const search = opts.search?.trim();
+  const like = search ? `%${search.toLowerCase()}%` : null;
+  const rows = await sql<{ type: string; n: number }[]>`
+    select type, count(*)::int as n
+      from task.notifications
+     where user_id = ${userId}::uuid
+       and (${onlyUnread}::bool = false or is_read = false)
+       and (${like}::text is null
+            or lower(title) like ${like}::text
+            or lower(coalesce(body, '')) like ${like}::text)
+     group by type
+  `;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.type] = Number(r.n);
+  return out;
 }
 
 /** App-level fan-out for events without a DB trigger (task edits, attachments,
