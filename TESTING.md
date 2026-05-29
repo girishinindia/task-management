@@ -251,7 +251,7 @@ Projects group tasks and have their own team + admins (requires migration `0008`
 
 1. **Create a project.** As **Admin** (Window A), sidebar → **Projects** → **New project**. Name it `Website Revamp`, save. ✅ It appears as a card showing you as **admin**, 1 member, 0 tasks.
 2. **Build the team.** Open the project → **Team**. Add **Priya** as **Admin** (a project admin) and **Rahul** as **Member**. ✅ Both appear; you can change a role or remove a member here.
-3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul). Create it.
+3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul) — non-members never appear. ✅ The **same project-scoped list** is used by **Manage assignees** on the task detail page and by the **Transfer → "Transfer to"** dropdown. (The server also rejects assigning/transferring a non-member with a 400, so it can't be bypassed.)
 4. **Membership = visibility.** ✅ Rahul (Window C), a member, sees that task under **All tasks**. A non-member (e.g. Sneha) does **not** see it, and opening its URL directly is "not found".
 5. **Project-scoped management.** As Rahul (member, not project admin) the task is **read-only** (no Edit/Delete/Transfer) but he can submit a **status report**. As Priya (project admin) she can edit/delete/transfer/assign within Website Revamp — but not in projects she doesn't administer.
 6. **Filters.** On **All tasks**: the **Project** dropdown narrows to one project, the **assignee** dropdown to one person, and the **★ Important** chip shows only High-priority tasks. ✅ They combine and persist across the List/Board toggle.
@@ -330,7 +330,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
 - [ ] Task visibility is project-scoped — you only see tasks in projects you belong to (workspace admin sees all)
-- [ ] New task requires a Project; the assignee picker is limited to that project's members
+- [ ] New task requires a Project; the assignee picker is limited to that project's members — and so are **Manage assignees** (detail page) and **Transfer to** (non-members never shown; server 400s if attempted)
 - [ ] Project, Assignee, and ★ Important (high-priority) filters work on All tasks
 - [ ] Users (members) can only set status to In progress / Done; Blocked/Cancelled/reopen are admin-only (UI + API 403)
 - [ ] Only super admins create projects; admins get "Request a project" and super admins are notified

@@ -24,11 +24,14 @@ export interface AssigneeLite {
 
 export function AssigneesSection({
   taskId,
+  projectId,
   dueDate,
   initialAssignees,
   editable,
 }: {
   taskId: string;
+  /** Scope the picker to this project's members. */
+  projectId: string;
   dueDate: string | null;
   initialAssignees: AssigneeLite[];
   editable: boolean;
@@ -125,6 +128,7 @@ export function AssigneesSection({
             value={draftIds}
             onChange={setDraftIds}
             dueDate={dueDate}
+            projectId={projectId}
           />
           <DialogFooter>
             <Button

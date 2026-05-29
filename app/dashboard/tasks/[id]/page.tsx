@@ -83,6 +83,7 @@ export default async function TaskDetailPage({
           {canTransfer ? (
             <TransferDialog
               taskId={task.id}
+              projectId={task.project_id}
               dueDate={task.due_date}
               currentAssignees={assignees.map((a) => ({
                 user_id: a.user_id,
@@ -177,6 +178,7 @@ export default async function TaskDetailPage({
 
       <AssigneesSection
         taskId={task.id}
+        projectId={task.project_id}
         dueDate={task.due_date}
         editable={editable}
         initialAssignees={assignees.map((a) => ({

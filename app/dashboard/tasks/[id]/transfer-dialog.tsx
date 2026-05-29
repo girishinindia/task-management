@@ -27,6 +27,8 @@ import {
 
 export interface TransferDialogProps {
   taskId: string;
+  /** The task's project — scopes the "transfer to" list to project members. */
+  projectId: string;
   /** ISO YYYY-MM-DD if the task has a due_date. Drives the inactive-on-date guard. */
   dueDate: string | null;
   /** Current assignees — populate the "from" select. */
@@ -67,10 +69,12 @@ export function TransferDialog(props: TransferDialogProps) {
     async function load() {
       setLoading(true);
       try {
-        const url = props.dueDate
-          ? `/api/users?date=${props.dueDate}`
-          : `/api/users`;
-        const res = await fetch(url);
+        // Scope to the task's project so only project members are offered, and
+        // pass the due date so inactive-on-date flags come back.
+        const qs = new URLSearchParams();
+        if (props.dueDate) qs.set("date", props.dueDate);
+        qs.set("project_id", props.projectId);
+        const res = await fetch(`/api/users?${qs.toString()}`);
         const data = await res.json();
         if (!cancelled) setUsers(data.users ?? []);
       } finally {
@@ -81,7 +85,7 @@ export function TransferDialog(props: TransferDialogProps) {
     return () => {
       cancelled = true;
     };
-  }, [open, props.dueDate]);
+  }, [open, props.dueDate, props.projectId]);
 
   async function submit() {
     if (!toId) {
