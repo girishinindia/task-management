@@ -1,36 +1,40 @@
 import { requireUser } from "@/lib/auth";
-import { getTask } from "@/lib/dao/tasks";
-import { canManageProject } from "@/lib/dao/projects";
-import { removeAssignment } from "@/lib/dao/assignments";
+import {
+  canManageProject,
+  getProject,
+  removeMember,
+} from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
+/** Remove a member from a project. Project admin or workspace admin. */
 export async function DELETE(
   req: Request,
   { params }: { params: { id: string; userId: string } }
 ) {
   const me = await requireUser();
-  const task = await getTask(params.id);
-  if (!task) return apiError("not_found", "Task not found", 404);
-  if (!(await canManageProject(me.userId, me.role, task.project_id))) {
+  const project = await getProject(params.id);
+  if (!project) return apiError("not_found", "Project not found", 404);
+  if (!(await canManageProject(me.userId, me.role, params.id))) {
     return apiError(
       "forbidden",
-      "Only a project admin (or workspace admin) can change assignees.",
+      "Only a project admin (or workspace admin) can manage members.",
       403
     );
   }
-  const removed = await removeAssignment(params.id, params.userId);
+
+  const removed = await removeMember(params.id, params.userId);
 
   await recordAudit({
-    action: "task.assignee_removed",
-    entityType: "task",
+    action: "project.member_removed",
+    entityType: "project",
     entityId: params.id,
     actorId: me.userId,
     actorEmail: me.email,
-    summary: `Removed an assignee from "${task.title}"`,
+    summary: `Removed a member from "${project.name}"`,
     metadata: { user_id: params.userId },
     ip: clientIp(req),
   });

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
+  FolderKanban,
   History,
   LayoutDashboard,
   ListTodo,
@@ -46,6 +47,12 @@ const ITEMS: NavItem[] = [
     label: "All tasks",
     icon: <ListTodo className="h-4 w-4" />,
     match: (p) => p.startsWith("/dashboard/tasks"),
+  },
+  {
+    href: "/dashboard/projects",
+    label: "Projects",
+    icon: <FolderKanban className="h-4 w-4" />,
+    match: (p) => p.startsWith("/dashboard/projects"),
   },
   {
     href: "/dashboard/notifications",

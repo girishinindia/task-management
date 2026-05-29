@@ -13,6 +13,9 @@ export async function GET(req: Request) {
   // cast, which would otherwise throw "date/time field value out of range".
   const raw = url.searchParams.get("date");
   const date = isValidDateString(raw) ? raw : null;
-  const rows = await listActiveAssignableUsers(date);
+  const projectRaw = url.searchParams.get("project_id");
+  const projectId =
+    projectRaw && /^[0-9a-fA-F-]{36}$/.test(projectRaw) ? projectRaw : null;
+  const rows = await listActiveAssignableUsers(date, projectId);
   return apiOk({ users: rows });
 }

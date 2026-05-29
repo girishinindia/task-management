@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
-import { canMutate, getTask } from "@/lib/dao/tasks";
+import { getTask } from "@/lib/dao/tasks";
+import { canManageProject, findNonMembers } from "@/lib/dao/projects";
 import {
   findInvalidAssignees,
   listAssigneesForTask,
@@ -59,11 +60,21 @@ export async function POST(
 
   const task = await getTask(params.id);
   if (!task) return apiError("not_found", "Task not found", 404);
-  if (!canMutate(task, me.userId, me.role)) {
+  if (!(await canManageProject(me.userId, me.role, task.project_id))) {
     return apiError(
       "forbidden",
-      "Only an admin can change assignees.",
+      "Only a project admin (or workspace admin) can change assignees.",
       403
+    );
+  }
+
+  const nonMembers = await findNonMembers(task.project_id, parsed.data.user_ids);
+  if (nonMembers.length > 0) {
+    return apiError(
+      "not_project_member",
+      "Some selected users aren't members of this project.",
+      400,
+      { user_ids: nonMembers }
     );
   }
 

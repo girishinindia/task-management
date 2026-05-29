@@ -44,6 +44,33 @@ export async function listNotifications(
   `;
 }
 
+/** App-level fan-out for events without a DB trigger (task edits, attachments,
+ *  project requests). Inserts one notification per (de-duplicated) user. */
+export async function notifyUsers(
+  userIds: string[],
+  n: { type: string; title: string; body?: string | null; link?: string | null }
+): Promise<void> {
+  const unique = Array.from(new Set(userIds.filter(Boolean)));
+  if (unique.length === 0) return;
+  const values = unique.map((uid) => ({
+    user_id: uid,
+    type: n.type,
+    title: n.title,
+    body: n.body ?? null,
+    link: n.link ?? null,
+  }));
+  await sql`
+    insert into task.notifications ${sql(
+      values,
+      "user_id",
+      "type",
+      "title",
+      "body",
+      "link"
+    )}
+  `;
+}
+
 export async function countUnread(userId: string): Promise<number> {
   const rows = await sql<{ n: string }[]>`
     select count(*)::text as n

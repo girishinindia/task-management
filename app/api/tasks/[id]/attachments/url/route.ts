@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canReadTask, getTask } from "@/lib/dao/tasks";
 import { insertUrlAttachment } from "@/lib/dao/attachments";
 import { urlAttachmentSchema } from "@/lib/schemas/attachments";
+import { listAssigneesForTask } from "@/lib/dao/assignments";
+import { notifyUsers } from "@/lib/dao/notifications";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -53,5 +55,15 @@ export async function POST(
     metadata: { task_id: params.id, kind: "url", link_url: parsed.data.link_url },
     ip: clientIp(req),
   });
+  const assignees = await listAssigneesForTask(params.id);
+  await notifyUsers(
+    assignees.map((a) => a.user_id).filter((id) => id !== me.userId),
+    {
+      type: "attachment_added",
+      title: "Attachment added",
+      body: `${me.email} attached "${parsed.data.original_name ?? parsed.data.link_url}"`,
+      link: `/dashboard/tasks/${params.id}`,
+    }
+  );
   return apiOk({ attachment: row });
 }

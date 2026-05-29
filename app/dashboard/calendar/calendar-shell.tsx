@@ -104,6 +104,11 @@ export function CalendarShell(props: CalendarShellProps) {
                 key={iso}
                 type="button"
                 onClick={() => setOpenDay(iso)}
+                title={
+                  count > 0
+                    ? `${count} task${count === 1 ? "" : "s"} on this day — click to view`
+                    : "No tasks scheduled — click to view"
+                }
                 className={cn(
                   "group relative flex h-24 flex-col items-stretch border-b border-r p-2 text-left transition-colors hover:bg-accent/40",
                   !isThis && "bg-muted/20 text-muted-foreground",
@@ -134,9 +139,15 @@ export function CalendarShell(props: CalendarShellProps) {
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-auto text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                  {count === 0 ? "Nothing" : count === 1 ? "1 task" : `${count} tasks`}
-                </div>
+                {count > 0 ? (
+                  <div className="mt-auto truncate text-[10px] font-medium text-primary">
+                    {count} task{count === 1 ? "" : "s"}
+                  </div>
+                ) : (
+                  <div className="mt-auto text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                    No tasks
+                  </div>
+                )}
               </button>
             );
           })}

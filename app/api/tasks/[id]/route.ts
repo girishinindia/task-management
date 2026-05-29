@@ -1,12 +1,14 @@
 import { requireUser } from "@/lib/auth";
 import { taskUpdateSchema } from "@/lib/schemas/tasks";
 import {
-  canMutate,
   canReadTask,
   deleteTask,
   getTask,
   updateTask,
 } from "@/lib/dao/tasks";
+import { canManageProject, isSuperAdmin } from "@/lib/dao/projects";
+import { listAssigneesForTask } from "@/lib/dao/assignments";
+import { notifyUsers } from "@/lib/dao/notifications";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -62,8 +64,12 @@ export async function PATCH(
 
   const current = await getTask(params.id);
   if (!current) return apiError("not_found", "Task not found", 404);
-  if (!canMutate(current, me.userId, me.role)) {
-    return apiError("forbidden", "You can't update this task", 403);
+  if (!(await canManageProject(me.userId, me.role, current.project_id))) {
+    return apiError(
+      "forbidden",
+      "Only a project admin (or workspace admin) can update this task.",
+      403
+    );
   }
 
   // Strip status defensively even though we already rejected when it was set.
@@ -82,6 +88,17 @@ export async function PATCH(
     ip: clientIp(req),
   });
 
+  const assignees = await listAssigneesForTask(params.id);
+  await notifyUsers(
+    assignees.map((a) => a.user_id).filter((id) => id !== me.userId),
+    {
+      type: "task_updated",
+      title: `Task updated: ${updated.title}`,
+      body: `${me.email} updated this task`,
+      link: `/dashboard/tasks/${params.id}`,
+    }
+  );
+
   return apiOk({ task: updated });
 }
 
@@ -92,8 +109,12 @@ export async function DELETE(
   const me = await requireUser();
   const current = await getTask(params.id);
   if (!current) return apiError("not_found", "Task not found", 404);
-  if (!canMutate(current, me.userId, me.role)) {
-    return apiError("forbidden", "You can't delete this task", 403);
+  if (!(await isSuperAdmin(me.userId))) {
+    return apiError(
+      "forbidden",
+      "Only a super admin can hard-delete a task — deactivate it instead.",
+      403
+    );
   }
   await deleteTask(params.id);
 

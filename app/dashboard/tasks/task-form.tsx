@@ -36,9 +36,12 @@ export interface TaskFormProps {
   onSuccessHref?: string;
   /** Show a status field in create mode? Defaults to false (new tasks start pending). */
   showStatusOnCreate?: boolean;
+  /** Projects the user can create in (shown as a required selector in create mode). */
+  projects?: { id: string; name: string }[];
 }
 
 const emptyValues: TaskFormValues = {
+  project_id: "",
   title: "",
   description: "",
   status: "pending",
@@ -53,6 +56,7 @@ export function TaskForm({
   mode,
   onSuccessHref,
   showStatusOnCreate = false,
+  projects = [],
 }: TaskFormProps) {
   const router = useRouter();
   const form = useForm<TaskFormValues>({
@@ -113,6 +117,39 @@ export function TaskForm({
       onSubmit={form.handleSubmit(onSubmit)}
       className="space-y-5 rounded-lg border bg-card p-6"
     >
+      {mode === "create" ? (
+        <div className="space-y-1.5">
+          <Label>Project</Label>
+          <Select
+            value={form.watch("project_id")}
+            onValueChange={(v) => {
+              form.setValue("project_id", v, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+              // Assignees are project-scoped — reset when the project changes.
+              form.setValue("assignee_ids", []);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {form.formState.errors.project_id ? (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.project_id.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <Label htmlFor="title">Title</Label>
         <Input id="title" {...form.register("title")} />
@@ -227,6 +264,7 @@ export function TaskForm({
                 value={field.value ?? []}
                 onChange={field.onChange}
                 dueDate={form.watch("due_date") || null}
+                projectId={form.watch("project_id") || null}
               />
             )}
           />

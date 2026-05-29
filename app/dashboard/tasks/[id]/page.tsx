@@ -4,12 +4,12 @@ import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
-  canMutate,
   canReadTask,
   getTask,
   listStatusHistory,
   listTransferHistory,
 } from "@/lib/dao/tasks";
+import { canManageProject, isSuperAdmin } from "@/lib/dao/projects";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
 import { listAttachmentsForTask } from "@/lib/dao/attachments";
 import { findUserById } from "@/lib/dao/users";
@@ -30,6 +30,7 @@ import {
   priorityVariant,
 } from "../task-meta";
 import { DeleteTaskButton } from "./delete-task-button";
+import { DeactivateTaskButton } from "./deactivate-task-button";
 
 export const dynamic = "force-dynamic";
 
@@ -42,17 +43,18 @@ export default async function TaskDetailPage({
   const task = await getTask(params.id);
   if (!task) notFound();
 
-  // Phase 6 read rule: creator, assignee, or admin.
   const assignees = await listAssigneesForTask(task.id);
-  const isAssignee = assignees.some((a) => a.user_id === me.userId);
-  if (me.role !== "admin" && task.created_by !== me.userId && !isAssignee) {
+
+  // Read rule: workspace admin or a member of the task's project.
+  const canChangeStatus = await canReadTask(task.id, me.userId, me.role);
+  if (!canChangeStatus) {
     notFound();
   }
 
-  const editable = canMutate(task, me.userId, me.role);
-  const canChangeStatus = await canReadTask(task.id, me.userId, me.role);
-  // Workspace rule: only admins can transfer (reassign) tasks.
-  const canTransfer = me.role === "admin";
+  // Manage rule: workspace admin or a project admin of the task's project.
+  const editable = await canManageProject(me.userId, me.role, task.project_id);
+  const isSuper = await isSuperAdmin(me.userId);
+  const canTransfer = editable;
   const [creator, history, transfers, attachments] = await Promise.all([
     findUserById(task.created_by),
     listStatusHistory(task.id),
@@ -82,6 +84,13 @@ export default async function TaskDetailPage({
             />
           ) : null}
           {editable ? (
+            <DeactivateTaskButton
+              taskId={task.id}
+              isActive={task.is_active}
+              title={task.title}
+            />
+          ) : null}
+          {isSuper ? (
             <DeleteTaskButton taskId={task.id} title={task.title} />
           ) : null}
         </div>
@@ -93,13 +102,22 @@ export default async function TaskDetailPage({
             taskId={task.id}
             currentStatus={task.status}
             canChange={canChangeStatus}
+            canManage={editable}
           />
           <Badge variant={priorityVariant(task.priority)}>
             {PRIORITY_LABEL[task.priority]} priority
           </Badge>
+          {task.project_name ? (
+            <Link href={`/dashboard/projects/${task.project_id}`}>
+              <Badge variant="secondary" className="hover:bg-secondary/80">
+                {task.project_name}
+              </Badge>
+            </Link>
+          ) : null}
           {isOverdue(task.due_date, task.status) ? (
             <Badge variant="destructive">Overdue</Badge>
           ) : null}
+          {!task.is_active ? <Badge variant="muted">Archived</Badge> : null}
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{task.title}</h1>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -121,6 +139,7 @@ export default async function TaskDetailPage({
           mode="edit"
           initial={{
             id: task.id,
+            project_id: task.project_id,
             title: task.title,
             description: task.description ?? "",
             status: task.status,

@@ -28,6 +28,8 @@ export interface AssigneePickerProps {
   onChange: (next: string[]) => void;
   /** Optional: a YYYY-MM-DD date used to flag users who are inactive on it. */
   dueDate?: string | null;
+  /** Optional: restrict the list to members of this project. */
+  projectId?: string | null;
   /** Optional: pre-fetched users. If omitted, fetched from /api/users. */
   initialUsers?: AssigneeOption[];
   disabled?: boolean;
@@ -39,6 +41,7 @@ export function AssigneePicker({
   value,
   onChange,
   dueDate,
+  projectId,
   initialUsers,
   disabled,
   className,
@@ -54,12 +57,13 @@ export function AssigneePicker({
     async function load() {
       setLoading(true);
       try {
-        // Only pass the date when it's valid; otherwise omit it so a mis-keyed
-        // value can't trigger a 500 we'd then fail to parse as JSON.
-        const url = isValidDateString(dueDate)
-          ? `/api/users?date=${encodeURIComponent(dueDate)}`
-          : `/api/users`;
-        const res = await fetch(url);
+        // Build the query: a valid date flags users inactive that day; a
+        // project scopes the list to that project's members.
+        const params = new URLSearchParams();
+        if (isValidDateString(dueDate)) params.set("date", dueDate);
+        if (projectId) params.set("project_id", projectId);
+        const qs = params.toString();
+        const res = await fetch(qs ? `/api/users?${qs}` : `/api/users`);
         const data = res.ok ? await res.json().catch(() => null) : null;
         if (!cancelled) setUsers(data?.users ?? []);
       } catch {
@@ -72,7 +76,7 @@ export function AssigneePicker({
     return () => {
       cancelled = true;
     };
-  }, [dueDate]);
+  }, [dueDate, projectId]);
 
   const selectedSet = useMemo(() => new Set(value), [value]);
   const filtered = useMemo(() => {

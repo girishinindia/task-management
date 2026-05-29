@@ -7,8 +7,11 @@ import {
   ArrowRightLeft,
   Bell,
   CheckCheck,
+  FolderPlus,
   Inbox,
   Loader2,
+  Paperclip,
+  Pencil,
   UserPlus2,
   RefreshCcw,
 } from "lucide-react";
@@ -39,7 +42,30 @@ function iconForType(type: string) {
   if (type === "task_assigned") return UserPlus2;
   if (type === "task_transferred") return ArrowRightLeft;
   if (type === "status_changed") return RefreshCcw;
+  if (type === "task_updated") return Pencil;
+  if (type === "attachment_added") return Paperclip;
+  if (type === "project_requested") return FolderPlus;
   return Bell;
+}
+
+/** Per-type color so notifications are scannable at a glance. */
+function colorForType(type: string): string {
+  switch (type) {
+    case "task_assigned":
+      return "bg-sky-100 text-sky-700";
+    case "task_transferred":
+      return "bg-violet-100 text-violet-700";
+    case "status_changed":
+      return "bg-emerald-100 text-emerald-700";
+    case "task_updated":
+      return "bg-amber-100 text-amber-700";
+    case "attachment_added":
+      return "bg-cyan-100 text-cyan-700";
+    case "project_requested":
+      return "bg-fuchsia-100 text-fuchsia-700";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
 }
 
 export function NotificationsBell() {
@@ -244,9 +270,7 @@ export function NotificationsBell() {
                         <span
                           className={cn(
                             "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md",
-                            !n.is_read
-                              ? "bg-brand-100 text-brand-700"
-                              : "bg-muted text-muted-foreground"
+                            colorForType(n.type)
                           )}
                         >
                           <Icon className="h-3.5 w-3.5" />

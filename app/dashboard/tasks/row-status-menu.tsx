@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { LEGAL_TRANSITIONS } from "@/lib/schemas/status";
+import { LEGAL_TRANSITIONS, MEMBER_STATUSES } from "@/lib/schemas/status";
 import type { TaskStatus } from "@/lib/schemas/tasks";
 import { STATUS_LABEL, statusVariant } from "./task-meta";
 
@@ -22,13 +22,20 @@ import { STATUS_LABEL, statusVariant } from "./task-meta";
 export function RowStatusMenu({
   taskId,
   currentStatus,
+  canManage = true,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
+  /** Managers get every legal transition; members only In progress / Done. */
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const legal = LEGAL_TRANSITIONS[currentStatus];
+  const legal = canManage
+    ? LEGAL_TRANSITIONS[currentStatus]
+    : LEGAL_TRANSITIONS[currentStatus].filter((s) =>
+        MEMBER_STATUSES.includes(s)
+      );
 
   async function change(to: TaskStatus) {
     setPending(true);

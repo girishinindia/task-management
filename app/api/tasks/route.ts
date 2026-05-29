@@ -2,6 +2,11 @@ import { requireUser } from "@/lib/auth";
 import { taskCreateSchema } from "@/lib/schemas/tasks";
 import { createTask } from "@/lib/dao/tasks";
 import { findInvalidAssignees } from "@/lib/dao/assignments";
+import {
+  canManageProject,
+  findNonMembers,
+  getProject,
+} from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -10,9 +15,6 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const me = await requireUser();
-  if (me.role !== "admin") {
-    return apiError("forbidden", "Only an admin can create tasks.", 403);
-  }
 
   let body: unknown;
   try {
@@ -29,6 +31,33 @@ export async function POST(req: Request) {
       400,
       parsed.error.flatten().fieldErrors
     );
+  }
+
+  // Only a workspace admin or a project admin of the chosen project may create.
+  const project = await getProject(parsed.data.project_id);
+  if (!project) return apiError("not_found", "Project not found", 404);
+  if (!(await canManageProject(me.userId, me.role, parsed.data.project_id))) {
+    return apiError(
+      "forbidden",
+      "Only a project admin (or workspace admin) can create tasks in this project.",
+      403
+    );
+  }
+
+  // Initial assignees must be members of the project.
+  if (parsed.data.assignee_ids.length > 0) {
+    const nonMembers = await findNonMembers(
+      parsed.data.project_id,
+      parsed.data.assignee_ids
+    );
+    if (nonMembers.length > 0) {
+      return apiError(
+        "not_project_member",
+        "Some selected users aren't members of this project.",
+        400,
+        { user_ids: nonMembers }
+      );
+    }
   }
 
   // Date-activation guard for initial assignees.

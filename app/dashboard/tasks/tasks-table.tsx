@@ -26,10 +26,14 @@ import { RowStatusMenu } from "./row-status-menu";
 export function TasksTable({
   rows,
   assigneesByTask,
+  manageableProjectIds = [],
 }: {
   rows: TaskRow[];
   assigneesByTask: Record<string, AssigneeRow[]>;
+  /** Projects the viewer manages — drives which status transitions they get. */
+  manageableProjectIds?: string[];
 }) {
+  const canManageSet = new Set(manageableProjectIds);
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed bg-muted/30 px-6 py-16 text-center">
@@ -83,6 +87,7 @@ export function TasksTable({
                   <RowStatusMenu
                     taskId={t.id}
                     currentStatus={t.status}
+                    canManage={canManageSet.has(t.project_id)}
                   />
                 </TableCell>
                 <TableCell>

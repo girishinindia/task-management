@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { transferSchema } from "@/lib/schemas/transfer";
 import { getTask, transferTask } from "@/lib/dao/tasks";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
+import { canManageProject, findNonMembers } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -39,9 +40,24 @@ export async function POST(
   const task = await getTask(params.id);
   if (!task) return apiError("not_found", "Task not found", 404);
 
-  // Workspace rule: only admins can transfer (reassign) tasks.
-  if (me.role !== "admin") {
-    return apiError("forbidden", "Only an admin can transfer tasks.", 403);
+  // Project admins (or workspace admin) can transfer within their project.
+  if (!(await canManageProject(me.userId, me.role, task.project_id))) {
+    return apiError(
+      "forbidden",
+      "Only a project admin (or workspace admin) can transfer this task.",
+      403
+    );
+  }
+  // The new assignee must belong to the task's project.
+  const targetNonMembers = await findNonMembers(task.project_id, [
+    parsed.data.to_user_id,
+  ]);
+  if (targetNonMembers.length > 0) {
+    return apiError(
+      "not_project_member",
+      "The target user isn't a member of this project.",
+      400
+    );
   }
 
   const result = await transferTask({

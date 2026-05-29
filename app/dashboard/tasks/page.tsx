@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { LayoutGrid, List, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { listTasksForUser, type TaskScope } from "@/lib/dao/tasks";
 import { listAssigneesForTasks } from "@/lib/dao/assignments";
+import {
+  listManageableProjects,
+  listProjectsForUser,
+} from "@/lib/dao/projects";
+import { listActiveAssignableUsers } from "@/lib/dao/users";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { TasksTable } from "./tasks-table";
+import { TasksBoard } from "./tasks-board";
 import { TasksFilters, type DateChip } from "./tasks-filters";
 import {
   TASK_PRIORITIES,
@@ -27,7 +33,29 @@ type SP = {
   to?: string;
   /** Sugar chip: today | tomorrow | week | overdue | no_date */
   date_filter?: DateChip | "none";
+  /** Filter to a single project / a single assignee. */
+  project_id?: string;
+  assignee_id?: string;
+  /** Which view template to render. */
+  view?: "list" | "board";
 };
+
+/** Build a tasks URL that keeps the current filters but switches the view. */
+function withView(sp: SP, view: "list" | "board"): string {
+  const p = new URLSearchParams();
+  if (sp.q) p.set("q", sp.q);
+  if (sp.status) p.set("status", sp.status);
+  if (sp.priority) p.set("priority", sp.priority);
+  if (sp.scope) p.set("scope", sp.scope);
+  if (sp.from) p.set("from", sp.from);
+  if (sp.to) p.set("to", sp.to);
+  if (sp.date_filter) p.set("date_filter", sp.date_filter);
+  if (sp.project_id) p.set("project_id", sp.project_id);
+  if (sp.assignee_id) p.set("assignee_id", sp.assignee_id);
+  if (view === "board") p.set("view", "board");
+  const s = p.toString();
+  return s ? `/dashboard/tasks?${s}` : "/dashboard/tasks";
+}
 
 function safeStatus(v?: string): TaskStatus | "all" {
   if (!v || v === "all") return "all";
@@ -45,6 +73,9 @@ function safeScope(v?: string): TaskScope {
 }
 function safeIso(v?: string): string | null {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+function safeUuid(v?: string): string | null {
+  return v && /^[0-9a-fA-F-]{36}$/.test(v) ? v : null;
 }
 function safeChip(v?: string): DateChip | "none" {
   if (
@@ -119,18 +150,30 @@ export default async function TasksPage({
   const explicitTo = safeIso(searchParams.to);
   const chip = safeChip(searchParams.date_filter);
   const resolved = resolveDateFilter(chip, explicitFrom, explicitTo);
+  const projectId = safeUuid(searchParams.project_id);
+  const assigneeId = safeUuid(searchParams.assignee_id);
 
-  const rows = await listTasksForUser(me.userId, me.role, {
-    search: searchParams.q,
-    status,
-    priority,
-    scope,
-    from: resolved.from,
-    to: resolved.to,
-    no_date: resolved.no_date,
-    overdue: resolved.overdue,
-  });
+  const [rows, projects, users, manageable] = await Promise.all([
+    listTasksForUser(me.userId, me.role, {
+      search: searchParams.q,
+      status,
+      priority,
+      scope,
+      project_id: projectId,
+      assignee_id: assigneeId,
+      from: resolved.from,
+      to: resolved.to,
+      no_date: resolved.no_date,
+      overdue: resolved.overdue,
+    }),
+    listProjectsForUser(me.userId, me.role),
+    listActiveAssignableUsers(),
+    listManageableProjects(me.userId, me.role),
+  ]);
   const assigneesByTask = await listAssigneesForTasks(rows.map((r) => r.id));
+  const view = searchParams.view === "board" ? "board" : "list";
+  const manageableIds = manageable.map((p) => p.id);
+  const canCreate = manageable.length > 0;
 
   return (
     <div className="space-y-6">
@@ -143,7 +186,29 @@ export default async function TasksPage({
             : "Tasks you created or are assigned to."
         }
       >
-        {me.role === "admin" ? (
+        <div className="inline-flex rounded-lg border bg-card p-0.5">
+          <Button
+            asChild
+            size="sm"
+            variant={view === "list" ? "secondary" : "ghost"}
+            className="h-7 px-2.5"
+          >
+            <Link href={withView(searchParams, "list")}>
+              <List className="h-4 w-4" /> List
+            </Link>
+          </Button>
+          <Button
+            asChild
+            size="sm"
+            variant={view === "board" ? "secondary" : "ghost"}
+            className="h-7 px-2.5"
+          >
+            <Link href={withView(searchParams, "board")}>
+              <LayoutGrid className="h-4 w-4" /> Board
+            </Link>
+          </Button>
+        </div>
+        {canCreate ? (
           <Button asChild>
             <Link href="/dashboard/tasks/new">
               <Plus className="h-4 w-4" /> New task
@@ -160,10 +225,26 @@ export default async function TasksPage({
         defaultFrom={explicitFrom ?? ""}
         defaultTo={explicitTo ?? ""}
         defaultChip={chip}
+        defaultProject={projectId ?? ""}
+        defaultAssignee={assigneeId ?? ""}
+        projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+        users={users.map((u) => ({ id: u.id, full_name: u.full_name }))}
         showScope={me.role !== "admin"}
       />
 
-      <TasksTable rows={rows} assigneesByTask={assigneesByTask} />
+      {view === "board" ? (
+        <TasksBoard
+          rows={rows}
+          assigneesByTask={assigneesByTask}
+          manageableProjectIds={manageableIds}
+        />
+      ) : (
+        <TasksTable
+          rows={rows}
+          assigneesByTask={assigneesByTask}
+          manageableProjectIds={manageableIds}
+        />
+      )}
     </div>
   );
 }

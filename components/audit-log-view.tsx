@@ -24,6 +24,9 @@ const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "admin.user_updated", label: "User updated" },
   { value: "admin.date_status_set", label: "Date override set" },
   { value: "admin.date_status_removed", label: "Date override removed" },
+  { value: "project.created", label: "Project created" },
+  { value: "project.member_added", label: "Project member added" },
+  { value: "project.member_removed", label: "Project member removed" },
 ];
 
 type BadgeVariant =

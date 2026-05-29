@@ -38,6 +38,7 @@ const optionalText = (max: number) =>
 
 export const taskCreateSchema = z
   .object({
+    project_id: z.string().uuid("Pick a project"),
     title: z
       .string()
       .trim()

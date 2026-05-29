@@ -36,6 +36,10 @@ export function TasksFilters({
   defaultFrom,
   defaultTo,
   defaultChip,
+  defaultProject = "",
+  defaultAssignee = "",
+  projects = [],
+  users = [],
   showScope = true,
 }: {
   defaultQ: string;
@@ -45,6 +49,10 @@ export function TasksFilters({
   defaultFrom: string;
   defaultTo: string;
   defaultChip: DateChip | "none";
+  defaultProject?: string;
+  defaultAssignee?: string;
+  projects?: { id: string; name: string }[];
+  users?: { id: string; full_name: string }[];
   showScope?: boolean;
 }) {
   const router = useRouter();
@@ -124,6 +132,55 @@ export function TasksFilters({
             {TASK_PRIORITIES.map((p) => (
               <SelectItem key={p} value={p}>
                 {PRIORITY_LABEL[p]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={() =>
+            update({ priority: defaultPriority === "high" ? "all" : "high" })
+          }
+          aria-pressed={defaultPriority === "high"}
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+            defaultPriority === "high"
+              ? "border-destructive bg-destructive/10 text-destructive"
+              : "border-border bg-card text-muted-foreground hover:text-foreground"
+          )}
+        >
+          ★ Important
+        </button>
+        {projects.length > 1 ? (
+          <Select
+            defaultValue={defaultProject || "all"}
+            onValueChange={(v) => update({ project_id: v })}
+          >
+            <SelectTrigger className="w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All projects</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        <Select
+          defaultValue={defaultAssignee || "all"}
+          onValueChange={(v) => update({ assignee_id: v })}
+        >
+          <SelectTrigger className="w-[170px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Anyone assigned</SelectItem>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {u.full_name}
               </SelectItem>
             ))}
           </SelectContent>

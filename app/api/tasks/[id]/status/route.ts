@@ -1,10 +1,11 @@
 import { requireUser } from "@/lib/auth";
-import { statusChangeSchema } from "@/lib/schemas/status";
+import { statusChangeSchema, MEMBER_STATUSES } from "@/lib/schemas/status";
 import {
   canReadTask,
   changeTaskStatus,
   getTask,
 } from "@/lib/dao/tasks";
+import { canManageProject } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -44,6 +45,17 @@ export async function POST(
   // context to move the work forward.
   if (!(await canReadTask(params.id, me.userId, me.role))) {
     return apiError("forbidden", "You can't change this task's status", 403);
+  }
+
+  // Members may only move a task to In progress or Done; blocking, cancelling,
+  // and re-opening are manager-only (project admin / super admin).
+  const canManage = await canManageProject(me.userId, me.role, task.project_id);
+  if (!canManage && !MEMBER_STATUSES.includes(parsed.data.to_status)) {
+    return apiError(
+      "forbidden",
+      "Members can only set a task to In progress or Done.",
+      403
+    );
   }
 
   const result = await changeTaskStatus({

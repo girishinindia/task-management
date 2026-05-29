@@ -18,25 +18,31 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 - Task transfer with an audit trail
 - Attachments (file uploads + URL links)
 - Notifications (bell, list, live updates)
-- Date-based views (Today, Calendar, date filters)
+- Date-based views (Today, Calendar with per-day task hints, date filters)
+- Task views: list table **and** Kanban board (toggle on All tasks)
+- Projects with per-project teams and admins; Project / Assignee / Important filters
 - Roles and permissions (admin vs user)
 - Audit log (admin-wide report + per-user "My activity")
 
-### Permission model (the key rule)
+### Permission model (three tiers)
 
-**Only admins** can create, edit, delete, reassign (transfer), and manage assignees on tasks. **Regular users** can view tasks assigned to them, submit status reports (change status + add a note), and add/remove their own attachments — but never edit the task itself. This is enforced in the API (direct calls are rejected with **403**), not just hidden in the UI.
+**Super admin** (`users.is_super_admin = true`) > **Admin** (`role = 'admin'`) > **User** (`role = 'user'`). Rules are enforced in the API (direct calls 403), not just hidden in the UI.
 
-| Action | Admin | Regular user (assignee) |
-|---|:---:|:---:|
-| Create task | ✅ | ❌ |
-| Edit task fields (title, dates, priority, description) | ✅ | ❌ (read-only) |
-| Delete task | ✅ | ❌ |
-| Transfer / reassign | ✅ | ❌ |
-| Add / remove assignees | ✅ | ❌ |
-| Change status (submit status report) | ✅ | ✅ |
-| Add attachments | ✅ | ✅ |
-| Remove attachments | ✅ (any) | ✅ (only ones they uploaded) |
-| View task | ✅ (all) | ✅ (only assigned) |
+| Capability | Super admin | Admin | User |
+|---|:---:|:---:|:---:|
+| Create project | ✅ | ❌ (can *request*) | ❌ |
+| Create task (in a project) | ✅ any | ✅ their projects | ❌ |
+| Edit task / dates / priority | ✅ | ✅ their projects | ❌ (read-only) |
+| Assign / transfer (to project members) | ✅ | ✅ their projects | ❌ |
+| Status → In progress / Done | ✅ | ✅ | ✅ |
+| Status → Blocked / Cancelled / reopen | ✅ | ✅ | ❌ |
+| Add attachments / submit status report | ✅ | ✅ | ✅ |
+| Deactivate (archive) a task | ✅ | ✅ their projects | ❌ |
+| Hard-delete a task (permanent) | ✅ | ❌ | ❌ |
+| Deactivate a user (Admin → Users) | ✅ | ✅ | ❌ |
+| See tasks | all | (see note) | their projects |
+
+> Note: management rules above are fully enforced. In this build a non-super **admin** still *sees* all tasks (visibility-narrowing to only their projects is a planned refinement); super admins see all, members see their projects.
 
 ---
 
@@ -45,7 +51,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 Confirm all of these once before testing:
 
 1. **Dev server is running** for *this* project (the `task-management` folder). In the terminal you should see `Local: http://localhost:PORT`. Use that exact port below — it may be `3000`, or `3001` if another app already holds `3000`.
-2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007`. Without these the `task.*` tables don't exist and every page will error. (`0007_audit_log.sql` adds the `task.audit_log` table used by Flow 14 — if you skip it, operations still work but nothing is recorded.)
+2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007` → `0008` → `0009`. Without these the `task.*` tables don't exist and every page will error. (`0007` = audit log; `0008` = Projects + default **"General"** project; `0009` = `users.is_super_admin` (promotes the earliest admin to **super admin** — adjust with `update task.users set is_super_admin=true where email='you@example.com';`) + `tasks.is_active` archive flag. Without `0008`/`0009` the tasks pages error on the missing columns.)
 3. **Redis REST is configured** in `.env.local` (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). Login creates a session in Redis, so sign-in fails without it.
 4. **At least one admin exists.** Create one from the terminal:
    ```
@@ -126,7 +132,7 @@ Each step lists the **action** and the **expected result** (✅). Tick the check
 
 ### Flow 3 — Create the seed tasks
 
-Only admins can create tasks, so create all of these as **Admin** (Window A). Regular users have no "New task" button, and visiting `/dashboard/tasks/new` redirects them to the dashboard (verified in Flow 11).
+Create all of these as **Admin** (Window A). Each task now belongs to a **Project** — pick **General** (the default project everyone joined in migration `0008`) for these seed tasks. Only a project's admins (or a workspace admin) can create tasks in it; a regular member who opens **New task** sees a "no project to add tasks to" message. Per-project teams and admins are exercised in Flow 15.
 
 1. In **Window A**, sidebar → **All tasks** → **New task** (or use **New task** on the dashboard).
 2. Create **Task 1**: Title `Design new landing page hero`, a short description, **Priority** = High, **Start date** = today, **Due date** = today + 2 days. Under **Assignees**, pick **Priya**. Click **Create task**. ✅ Redirected to the task detail page; status shows **Pending**; Priya listed under assignees.
@@ -173,9 +179,10 @@ Only admins can create tasks, so create all of these as **Admin** (Window A). Re
 
 1. **Today view** (sidebar → **Today**): as Rahul, ✅ **Task 2** (due today) appears; tasks are grouped by status; **Task 6** (no date) shows under a "No date" section.
 2. **Overdue**: as Rahul, ✅ **Task 7** (due yesterday) shows an **overdue** badge (red).
-3. **Calendar** (sidebar → **Calendar**): ✅ tasks land on their due dates; clicking a day opens that day's tasks.
+3. **Calendar** (sidebar → **Calendar**): ✅ tasks land on their due dates. Days that have tasks show a blue **"N tasks"** label, and hovering any day shows a tooltip (e.g. "2 tasks on this day — click to view"). Clicking a day opens that day's tasks.
 4. **Filters / chips** on **All tasks**: test **Today**, **Tomorrow**, **This week**, **Overdue**, and **No date**. ✅ Each chip narrows the list correctly (e.g. "Tomorrow" → Task 4; "No date" → Task 6; "Overdue" → Task 7).
 5. **Search**: type part of a title (e.g. `webinar`). ✅ Results filter to Task 5.
+6. **List / Board views.** On **All tasks**, use the **List | Board** toggle (top-right). ✅ **Board** shows a Kanban layout with columns per status — Pending, In progress, Blocked, Done, Cancelled — and each card shows priority, due date, and assignees. Move a card forward using its status dropdown (same transition rules + permissions as elsewhere). Apply a filter, then switch List ↔ Board: ✅ the filter is preserved across the toggle.
 
 ### Flow 10 — Admin: per-date activation, edit, deactivate
 
@@ -224,6 +231,28 @@ Every auth event and task/admin operation is recorded in an append-only log (req
 5. **Per-user activity.** In **Window B (Priya)**, sidebar → **My activity** (`/dashboard/activity`). ✅ Priya sees only *her own* actions (logins, status reports, attachments) — never anyone else's, and there's no actor column.
 6. **Logging never blocks work.** ✅ All operations above still succeeded normally — audit writes are best-effort and never break the request.
 
+### Flow 15 — Projects, teams & filters
+
+Projects group tasks and have their own team + admins (requires migration `0008`).
+
+1. **Create a project.** As **Admin** (Window A), sidebar → **Projects** → **New project**. Name it `Website Revamp`, save. ✅ It appears as a card showing you as **admin**, 1 member, 0 tasks.
+2. **Build the team.** Open the project → **Team**. Add **Priya** as **Admin** (a project admin) and **Rahul** as **Member**. ✅ Both appear; you can change a role or remove a member here.
+3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul). Create it.
+4. **Membership = visibility.** ✅ Rahul (Window C), a member, sees that task under **All tasks**. A non-member (e.g. Sneha) does **not** see it, and opening its URL directly is "not found".
+5. **Project-scoped management.** As Rahul (member, not project admin) the task is **read-only** (no Edit/Delete/Transfer) but he can submit a **status report**. As Priya (project admin) she can edit/delete/transfer/assign within Website Revamp — but not in projects she doesn't administer.
+6. **Filters.** On **All tasks**: the **Project** dropdown narrows to one project, the **assignee** dropdown to one person, and the **★ Important** chip shows only High-priority tasks. ✅ They combine and persist across the List/Board toggle.
+7. **Audit.** ✅ `project.created` and `project.member_added` rows show up in the admin **Audit log**.
+
+### Flow 16 — Role tiers, status limits & deactivate vs delete
+
+Three tiers: **super admin** (earliest admin, promoted by `0009`), **admin** (`role='admin'`), **user** (`role='user'`). Check `users.is_super_admin` in Supabase to confirm who's super.
+
+1. **Status limits for users.** As **Rahul** (a member) on a task assigned to him, open the status dropdown. ✅ Only **In progress** and **Done** are offered — never Blocked/Cancelled/reopen. A direct API call setting `cancelled` → **403** ("Members can only set a task to In progress or Done").
+2. **Admins/super do the rest.** As **Priya** (admin) or a super admin, the dropdown offers every legal transition incl. **Blocked** / **Cancelled**.
+3. **Create project = super only.** As Priya (admin, not super), the **Projects** page shows **Request a project** (not New project). Submit one → ✅ every super admin gets a colored `project_requested` notification. A super admin sees **New project**.
+4. **Deactivate vs hard delete.** On a task detail: an **admin** sees **Deactivate** — the task gets an **Archived** badge and drops out of task lists/board, and **Reactivate** restores it. Only a **super admin** sees **Delete** (permanent). ✅ A non-super admin calling hard-delete directly gets **403**.
+5. **Notifications coverage + color.** ✅ Assign, transfer, status change, **task edit**, and **attachment** all notify the other assignees (not the actor), each with a color-coded icon: sky (assigned), violet (transferred), green (status), amber (edited), cyan (attachment), fuchsia (project request).
+
 ---
 
 ## 6. Test results checklist
@@ -244,9 +273,19 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Bell updates live (SSE) without refresh; mark-as-read + mark-all-read work
 - [ ] Today view groups tasks; no-date bucket shown
 - [ ] Overdue badge appears for past-due open tasks
-- [ ] Calendar places tasks on due dates; day view opens
+- [ ] Calendar places tasks on due dates; days with tasks show a count hint + tooltip; day view opens
 - [ ] Date chips (Today/Tomorrow/Week/Overdue/No date) filter correctly
 - [ ] Search filters by title
+- [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
+- [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
+- [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
+- [ ] Task visibility is project-scoped — you only see tasks in projects you belong to (workspace admin sees all)
+- [ ] New task requires a Project; the assignee picker is limited to that project's members
+- [ ] Project, Assignee, and ★ Important (high-priority) filters work on All tasks
+- [ ] Users (members) can only set status to In progress / Done; Blocked/Cancelled/reopen are admin-only (UI + API 403)
+- [ ] Only super admins create projects; admins get "Request a project" and super admins are notified
+- [ ] Admins can Deactivate (archive) a task; only super admins can hard-delete (API 403 otherwise); archived tasks leave the lists and can be reactivated
+- [ ] Notifications fire for assign, transfer, status, task edit, and attachment — color-coded by type
 - [ ] Per-date activation blocks assignment on inactive dates
 - [ ] Edit user works; deactivating an account force-logs-out and blocks login
 - [ ] Only admins can create/edit/delete/transfer/assign — buttons hidden AND API returns 403 for regular users

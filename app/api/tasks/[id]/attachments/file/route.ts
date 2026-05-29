@@ -8,6 +8,8 @@ import {
   isAllowedAttachment,
   uploadToBunny,
 } from "@/lib/bunny";
+import { listAssigneesForTask } from "@/lib/dao/assignments";
+import { notifyUsers } from "@/lib/dao/notifications";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -118,6 +120,16 @@ export async function POST(
       metadata: { task_id: params.id, kind: "file", mime, size_bytes: file.size },
       ip: clientIp(req),
     });
+    const assignees = await listAssigneesForTask(params.id);
+    await notifyUsers(
+      assignees.map((a) => a.user_id).filter((id) => id !== me.userId),
+      {
+        type: "attachment_added",
+        title: "Attachment added",
+        body: `${me.email} attached "${originalName}"`,
+        link: `/dashboard/tasks/${params.id}`,
+      }
+    );
     return apiOk({ attachment: row });
   } catch (e) {
     const message = e instanceof Error ? e.message : "DB insert failed";

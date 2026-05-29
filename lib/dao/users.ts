@@ -134,7 +134,8 @@ export interface AssignableUser {
  *  carries `inactive_on_date = true` if that user has an explicit
  *  user_date_status with is_active=false on that date. */
 export async function listActiveAssignableUsers(
-  date?: string | null
+  date?: string | null,
+  projectId?: string | null
 ): Promise<AssignableUser[]> {
   return sql<AssignableUser[]>`
     select
@@ -148,6 +149,10 @@ export async function listActiveAssignableUsers(
       on uds.user_id = u.id
      and uds.date = ${date ?? null}::date
     where u.is_active = true
+      and (${projectId ?? null}::uuid is null
+           or exists (select 1 from task.project_members pm
+                       where pm.user_id = u.id
+                         and pm.project_id = ${projectId ?? null}::uuid))
     order by u.full_name asc
   `;
 }

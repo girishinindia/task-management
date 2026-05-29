@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { LEGAL_TRANSITIONS } from "@/lib/schemas/status";
+import { LEGAL_TRANSITIONS, MEMBER_STATUSES } from "@/lib/schemas/status";
 import type { TaskStatus } from "@/lib/schemas/tasks";
 import {
   STATUS_LABEL,
@@ -35,17 +35,24 @@ export function StatusMenu({
   taskId,
   currentStatus,
   canChange,
+  canManage = true,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
   canChange: boolean;
+  /** Managers get every legal transition; members only In progress / Done. */
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [target, setTarget] = useState<TaskStatus | null>(null);
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
 
-  const legal = LEGAL_TRANSITIONS[currentStatus];
+  const legal = canManage
+    ? LEGAL_TRANSITIONS[currentStatus]
+    : LEGAL_TRANSITIONS[currentStatus].filter((s) =>
+        MEMBER_STATUSES.includes(s)
+      );
 
   if (!canChange) {
     return (

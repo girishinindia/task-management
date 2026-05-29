@@ -23,6 +23,10 @@ export interface TaskRow {
   priority: TaskPriority;
   start_date: string | null; // YYYY-MM-DD
   due_date: string | null; // YYYY-MM-DD
+  project_id: string;
+  is_active: boolean;
+  /** Joined in list/detail reads; absent on insert/update RETURNING. */
+  project_name?: string | null;
   created_by: string;
   created_at: Date;
   updated_at: Date;
@@ -32,7 +36,7 @@ const SELECT_COLS = sql`
   id, title, description, status, priority,
   to_char(start_date, 'YYYY-MM-DD') as start_date,
   to_char(due_date,   'YYYY-MM-DD') as due_date,
-  created_by, created_at, updated_at
+  project_id, is_active, created_by, created_at, updated_at
 `;
 
 // ── Reads ───────────────────────────────────────────────────────────────────
@@ -43,6 +47,10 @@ export interface ListTasksOptions {
   scope?: TaskScope;
   status?: TaskStatus | "all";
   priority?: TaskPriority | "all";
+  /** Restrict to a single project. */
+  project_id?: string | null;
+  /** Restrict to tasks assigned to this user. */
+  assignee_id?: string | null;
   search?: string;
   /** ISO YYYY-MM-DD. Filters to tasks whose [effective_from, effective_to]
    *  overlaps [from, to]. effective_from = coalesce(start_date, due_date),
@@ -83,8 +91,11 @@ export async function listTasksForUser(
   const offset = Math.max(opts.offset ?? 0, 0);
 
   const isAdmin = role === "admin";
-  const wantCreated = scope === "all" || scope === "created";
-  const wantAssigned = scope === "all" || scope === "assigned";
+  const scopeAll = scope === "all";
+  const scopeCreated = scope === "created";
+  const scopeAssigned = scope === "assigned";
+  const projectId = opts.project_id ?? null;
+  const assigneeId = opts.assignee_id ?? null;
 
   // Date filters: no_date overrides from/to. Overdue is a separate boolean
   // and combines with the rest.
@@ -94,16 +105,27 @@ export async function listTasksForUser(
   const overdue = opts.overdue === true;
 
   return sql<TaskRow[]>`
-    select ${SELECT_COLS}
+    select ${SELECT_COLS},
+           (select pr.name from task.projects pr where pr.id = t.project_id) as project_name
       from task.tasks t
      where
+       -- Visibility: workspace admin, or a member of the task's project.
        (${isAdmin}::bool
-         or (${wantCreated}::bool and t.created_by = ${userId}::uuid)
-         or (${wantAssigned}::bool
-             and exists (
-               select 1 from task.task_assignments a
-                where a.task_id = t.id and a.user_id = ${userId}::uuid
-             )))
+         or exists (select 1 from task.project_members pm
+                     where pm.project_id = t.project_id
+                       and pm.user_id = ${userId}::uuid))
+       -- Personal scope filter (narrows within the visible set).
+       and (
+         ${scopeAll}::bool
+         or (${scopeCreated}::bool and t.created_by = ${userId}::uuid)
+         or (${scopeAssigned}::bool
+             and exists (select 1 from task.task_assignments a
+                          where a.task_id = t.id and a.user_id = ${userId}::uuid))
+       )
+       and (${projectId}::uuid is null or t.project_id = ${projectId}::uuid)
+       and (${assigneeId}::uuid is null
+            or exists (select 1 from task.task_assignments a2
+                        where a2.task_id = t.id and a2.user_id = ${assigneeId}::uuid))
        and (${status}::task.task_status is null or t.status = ${status}::task.task_status)
        and (${priority}::task.task_priority is null or t.priority = ${priority}::task.task_priority)
        and (${like}::text is null
@@ -118,6 +140,7 @@ export async function listTasksForUser(
        and (${overdue}::bool = false
             or (t.due_date < current_date
                 and t.status not in ('done','cancelled')))
+       and t.is_active = true
      order by
        case when t.due_date is null then 1 else 0 end,
        t.due_date asc,
@@ -145,14 +168,22 @@ export async function dayCounts(
   from: string,
   to: string
 ): Promise<Record<string, number>> {
-  const rows = await sql<{ day: string; n: string }[]>`
-    select to_char(day, 'YYYY-MM-DD') as day, n::text as n
-      from task.task_day_counts(
-        ${userId}::uuid,
-        ${role}::task.user_role,
-        ${from}::date,
-        ${to}::date
-      )
+  const isAdmin = role === "admin";
+  const rows = await sql<{ day: string; n: number }[]>`
+    select to_char(d::date, 'YYYY-MM-DD') as day, count(*)::int as n
+      from task.tasks t
+      cross join lateral generate_series(
+        greatest(coalesce(t.start_date, t.due_date), ${from}::date),
+        least(coalesce(t.due_date, t.start_date), ${to}::date),
+        interval '1 day'
+      ) as d
+     where t.is_active = true
+       and (t.start_date is not null or t.due_date is not null)
+       and (${isAdmin}::bool
+            or exists (select 1 from task.project_members pm
+                        where pm.project_id = t.project_id
+                          and pm.user_id = ${userId}::uuid))
+     group by d
   `;
   const out: Record<string, number> = {};
   for (const r of rows) out[r.day] = Number(r.n);
@@ -169,19 +200,22 @@ export async function countNoDateTasks(
   const rows = await sql<{ n: string }[]>`
     select count(*)::text as n
       from task.tasks t
-     where t.start_date is null
+     where t.is_active = true
+       and t.start_date is null
        and t.due_date is null
        and (${isAdmin}::bool
-            or t.created_by = ${userId}::uuid
-            or exists (select 1 from task.task_assignments a
-                        where a.task_id = t.id and a.user_id = ${userId}::uuid))
+            or exists (select 1 from task.project_members pm
+                        where pm.project_id = t.project_id
+                          and pm.user_id = ${userId}::uuid))
   `;
   return Number(rows[0]?.n ?? 0);
 }
 
 export async function getTask(id: string): Promise<TaskRow | null> {
   const rows = await sql<TaskRow[]>`
-    select ${SELECT_COLS} from task.tasks where id = ${id}::uuid limit 1
+    select ${SELECT_COLS},
+           (select pr.name from task.projects pr where pr.id = project_id) as project_name
+      from task.tasks where id = ${id}::uuid limit 1
   `;
   return rows[0] ?? null;
 }
@@ -215,12 +249,12 @@ export async function countTasksForUser(
       count(*) filter (where t.status = 'done'
                          and t.updated_at >= current_date - interval '7 days')::text      as done_recently
     from task.tasks t
-    where ${isAdmin}::bool
-       or t.created_by = ${userId}::uuid
+    where t.is_active = true
+      and (${isAdmin}::bool
        or exists (
-         select 1 from task.task_assignments a
-          where a.task_id = t.id and a.user_id = ${userId}::uuid
-       )
+         select 1 from task.project_members pm
+          where pm.project_id = t.project_id and pm.user_id = ${userId}::uuid
+       ))
   `;
   const r = rows[0];
   return {
@@ -243,10 +277,9 @@ export async function canReadTask(
 ): Promise<boolean> {
   if (role === "admin") return true;
   const rows = await sql<{ ok: boolean }[]>`
-    select (t.created_by = ${actorId}::uuid
-            or exists (select 1 from task.task_assignments a
-                        where a.task_id = t.id
-                          and a.user_id = ${actorId}::uuid)) as ok
+    select exists (select 1 from task.project_members pm
+                    where pm.project_id = t.project_id
+                      and pm.user_id = ${actorId}::uuid) as ok
       from task.tasks t
      where t.id = ${taskId}::uuid
      limit 1
@@ -265,7 +298,8 @@ export async function createTask(
   if (assigneeIds.length === 0) {
     const rows = await sql<TaskRow[]>`
       insert into task.tasks (
-        title, description, status, priority, start_date, due_date, created_by
+        title, description, status, priority, start_date, due_date,
+        project_id, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -273,6 +307,7 @@ export async function createTask(
         ${input.priority},
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
+        ${input.project_id}::uuid,
         ${createdBy}::uuid
       )
       returning ${SELECT_COLS}
@@ -284,7 +319,8 @@ export async function createTask(
   return tx<TaskRow>(async (t) => {
     const inserted = await t<TaskRow[]>`
       insert into task.tasks (
-        title, description, status, priority, start_date, due_date, created_by
+        title, description, status, priority, start_date, due_date,
+        project_id, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -292,6 +328,7 @@ export async function createTask(
         ${input.priority},
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
+        ${input.project_id}::uuid,
         ${createdBy}::uuid
       )
       returning ${SELECT_COLS}
@@ -348,6 +385,19 @@ export async function deleteTask(id: string): Promise<boolean> {
     delete from task.tasks where id = ${id}::uuid returning id
   `;
   return rows.length > 0;
+}
+
+/** Archive (deactivate) or restore a task. */
+export async function setTaskActive(
+  id: string,
+  isActive: boolean
+): Promise<TaskRow | null> {
+  const rows = await sql<TaskRow[]>`
+    update task.tasks set is_active = ${isActive}
+     where id = ${id}::uuid
+    returning ${SELECT_COLS}
+  `;
+  return rows[0] ?? null;
 }
 
 // ── Status workflow ────────────────────────────────────────────────────────

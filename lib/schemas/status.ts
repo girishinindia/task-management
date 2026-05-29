@@ -23,3 +23,8 @@ export const LEGAL_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   done: ["in_progress"], // re-open
   cancelled: ["pending"], // re-open
 };
+
+/** Statuses a plain project member may set. Everything else (blocked,
+ *  cancelled, and re-opening to pending) is manager-only (project admin /
+ *  super admin). */
+export const MEMBER_STATUSES: TaskStatus[] = ["in_progress", "done"];
