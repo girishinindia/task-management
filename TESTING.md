@@ -20,6 +20,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 - Notifications (bell, list, live updates)
 - Date-based views (Today, Calendar, date filters)
 - Roles and permissions (admin vs user)
+- Audit log (admin-wide report + per-user "My activity")
 
 ### Permission model (the key rule)
 
@@ -44,7 +45,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 Confirm all of these once before testing:
 
 1. **Dev server is running** for *this* project (the `task-management` folder). In the terminal you should see `Local: http://localhost:PORT`. Use that exact port below — it may be `3000`, or `3001` if another app already holds `3000`.
-2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006`. Without these the `task.*` tables don't exist and every page will error.
+2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007`. Without these the `task.*` tables don't exist and every page will error. (`0007_audit_log.sql` adds the `task.audit_log` table used by Flow 14 — if you skip it, operations still work but nothing is recorded.)
 3. **Redis REST is configured** in `.env.local` (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). Login creates a session in Redis, so sign-in fails without it.
 4. **At least one admin exists.** Create one from the terminal:
    ```
@@ -211,6 +212,17 @@ Run these as **Priya** (Window B), a regular user — this is the core test of t
 2. **Empty states**: as a brand-new user with no tasks, the dashboard and Today view show friendly empty messages.
 3. **Responsive**: narrow the window. ✅ Sidebar collapses to icons; layout stays usable.
 
+### Flow 14 — Audit log
+
+Every auth event and task/admin operation is recorded in an append-only log (requires migration `0007`).
+
+1. **Admin report.** In **Window A (Admin)**, sidebar → **Audit log** (`/admin/audit`). ✅ A chronological table: each row shows a timestamp, an action badge (e.g. `auth.login`, `task.created`, `task.status_changed`, `attachment.added`), the actor's email, a details summary, and the IP. Earlier flows should already have populated it.
+2. **Coverage.** Confirm entries exist for what you did earlier: logins (Flow 0/2), task creation (Flow 3), status changes (Flow 5), the transfer (Flow 6), attachment add/remove (Flow 7), and admin user creation + deactivation (Flow 1/10). ✅ Each shows the correct actor and summary.
+3. **Failed logins are captured.** Sign out, attempt a login with a wrong password, then sign back in. In the audit log, set **Action → Login failed**. ✅ An `auth.login_failed` row appears with the attempted email and IP, and a blank actor (they never authenticated).
+4. **Filters + pagination.** Use the **Action** dropdown (e.g. `Status changed`) and the **Search** box (an email or part of a summary). ✅ The list narrows; **Older / Newer** paginate.
+5. **Per-user activity.** In **Window B (Priya)**, sidebar → **My activity** (`/dashboard/activity`). ✅ Priya sees only *her own* actions (logins, status reports, attachments) — never anyone else's, and there's no actor column.
+6. **Logging never blocks work.** ✅ All operations above still succeeded normally — audit writes are best-effort and never break the request.
+
 ---
 
 ## 6. Test results checklist
@@ -243,6 +255,10 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Regular user cannot reach /admin or other users' tasks
 - [ ] Logout works; session persists across refresh
 - [ ] Dark mode, empty states, and responsive layout look correct
+- [ ] Audit log (admin) records auth events + every task/attachment/admin operation with actor, summary, and IP
+- [ ] Failed login attempts appear as `auth.login_failed` (blank actor, attempted email + IP)
+- [ ] Audit log action filter, search, and pagination work
+- [ ] "My activity" shows each user only their own actions (no actor column)
 
 ---
 

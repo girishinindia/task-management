@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canReadTask, getTask } from "@/lib/dao/tasks";
 import { insertUrlAttachment } from "@/lib/dao/attachments";
 import { urlAttachmentSchema } from "@/lib/schemas/attachments";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -40,6 +42,16 @@ export async function POST(
     link_url: parsed.data.link_url,
     original_name: parsed.data.original_name ?? null,
     uploaded_by: me.userId,
+  });
+  await recordAudit({
+    action: "attachment.added",
+    entityType: "attachment",
+    entityId: row.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Attached link "${parsed.data.original_name ?? parsed.data.link_url}"`,
+    metadata: { task_id: params.id, kind: "url", link_url: parsed.data.link_url },
+    ip: clientIp(req),
   });
   return apiOk({ attachment: row });
 }

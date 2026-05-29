@@ -1,12 +1,14 @@
 import { requireAdmin } from "@/lib/auth";
 import { adminCreateUserSchema } from "@/lib/schemas/admin";
 import { createUser, findUserByEmail, toPublic } from "@/lib/dao/users";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   let body: unknown;
   try {
@@ -35,5 +37,17 @@ export async function POST(req: Request) {
   }
 
   const user = await createUser(parsed.data);
+
+  await recordAudit({
+    action: "admin.user_created",
+    entityType: "user",
+    entityId: user.id,
+    actorId: admin.userId,
+    actorEmail: admin.email,
+    summary: `Created ${parsed.data.role} account ${user.email}`,
+    metadata: { role: parsed.data.role },
+    ip: clientIp(req),
+  });
+
   return apiOk({ user: toPublic(user) });
 }

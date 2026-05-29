@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { taskCreateSchema } from "@/lib/schemas/tasks";
 import { createTask } from "@/lib/dao/tasks";
 import { findInvalidAssignees } from "@/lib/dao/assignments";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -54,5 +56,21 @@ export async function POST(req: Request) {
   }
 
   const task = await createTask(me.userId, parsed.data);
+
+  await recordAudit({
+    action: "task.created",
+    entityType: "task",
+    entityId: task.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Created task "${task.title}"`,
+    metadata: {
+      priority: parsed.data.priority,
+      due_date: parsed.data.due_date ?? null,
+      assignees: parsed.data.assignee_ids.length,
+    },
+    ip: clientIp(req),
+  });
+
   return apiOk({ task });
 }

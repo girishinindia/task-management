@@ -10,6 +10,7 @@ import { setAuthCookies } from "@/lib/auth";
 import { apiError, apiOk } from "@/lib/api-response";
 import { env } from "@/lib/env";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { recordAudit } from "@/lib/dao/audit";
 
 export const runtime = "nodejs";
 
@@ -86,6 +87,15 @@ export async function POST(req: Request) {
     role: user.role,
   });
   await updateLastLogin(user.id);
+
+  await recordAudit({
+    action: "auth.signup",
+    entityType: "auth",
+    actorId: user.id,
+    actorEmail: user.email,
+    summary: `${user.email} created an account`,
+    ip,
+  });
 
   return apiOk({ user: toPublic(user) });
 }

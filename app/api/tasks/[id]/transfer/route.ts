@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { transferSchema } from "@/lib/schemas/transfer";
 import { getTask, transferTask } from "@/lib/dao/tasks";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -80,6 +82,21 @@ export async function POST(
 
   // Return refreshed assignee list so the UI can re-render without a second
   // round trip.
+  await recordAudit({
+    action: "task.transferred",
+    entityType: "task",
+    entityId: params.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Transferred "${task.title}"`,
+    metadata: {
+      from_user_id: parsed.data.from_user_id ?? null,
+      to_user_id: parsed.data.to_user_id,
+      reason: parsed.data.reason ?? null,
+    },
+    ip: clientIp(req),
+  });
+
   const assignees = await listAssigneesForTask(params.id);
   return apiOk({
     task: result.task,

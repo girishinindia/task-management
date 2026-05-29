@@ -7,6 +7,8 @@ import {
   getTask,
   updateTask,
 } from "@/lib/dao/tasks";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -69,11 +71,22 @@ export async function PATCH(
   const updated = await updateTask(params.id, patch);
   if (!updated) return apiError("not_found", "Task not found", 404);
 
+  await recordAudit({
+    action: "task.updated",
+    entityType: "task",
+    entityId: params.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Updated task "${updated.title}"`,
+    metadata: { fields: Object.keys(patch) },
+    ip: clientIp(req),
+  });
+
   return apiOk({ task: updated });
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   const me = await requireUser();
@@ -83,5 +96,16 @@ export async function DELETE(
     return apiError("forbidden", "You can't delete this task", 403);
   }
   await deleteTask(params.id);
+
+  await recordAudit({
+    action: "task.deleted",
+    entityType: "task",
+    entityId: params.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Deleted task "${current.title}"`,
+    ip: clientIp(req),
+  });
+
   return apiOk({});
 }

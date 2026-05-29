@@ -8,6 +8,8 @@ import {
   cdnUrl,
   uploadToBunny,
 } from "@/lib/bunny";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -105,6 +107,16 @@ export async function POST(
       mime_type: mime,
       size_bytes: file.size,
       uploaded_by: me.userId,
+    });
+    await recordAudit({
+      action: "attachment.added",
+      entityType: "attachment",
+      entityId: row.id,
+      actorId: me.userId,
+      actorEmail: me.email,
+      summary: `Attached file "${originalName}"`,
+      metadata: { task_id: params.id, kind: "file", mime, size_bytes: file.size },
+      ip: clientIp(req),
     });
     return apiOk({ attachment: row });
   } catch (e) {

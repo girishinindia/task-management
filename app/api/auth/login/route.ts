@@ -4,6 +4,7 @@ import { authenticate, toPublic, updateLastLogin } from "@/lib/dao/users";
 import { setAuthCookies } from "@/lib/auth";
 import { apiError, apiOk } from "@/lib/api-response";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { recordAudit } from "@/lib/dao/audit";
 
 export const runtime = "nodejs";
 
@@ -76,6 +77,14 @@ export async function POST(req: Request) {
     // ONE message so a probe can't enumerate which emails exist as
     // (active or deactivated) accounts. Deactivated users learn they're
     // disabled through their admin, not through a different error code.
+    await recordAudit({
+      action: "auth.login_failed",
+      entityType: "auth",
+      actorEmail: email,
+      summary: `Failed login attempt for ${email}`,
+      metadata: { reason: result.reason },
+      ip,
+    });
     return apiError(
       "invalid_credentials",
       "Email or password is incorrect.",
@@ -89,6 +98,15 @@ export async function POST(req: Request) {
     role: result.user.role,
   });
   await updateLastLogin(result.user.id);
+
+  await recordAudit({
+    action: "auth.login",
+    entityType: "auth",
+    actorId: result.user.id,
+    actorEmail: result.user.email,
+    summary: `${result.user.email} signed in`,
+    ip,
+  });
 
   return apiOk({ user: toPublic(result.user) });
 }

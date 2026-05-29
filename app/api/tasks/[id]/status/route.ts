@@ -5,6 +5,8 @@ import {
   changeTaskStatus,
   getTask,
 } from "@/lib/dao/tasks";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -65,6 +67,21 @@ export async function POST(
     }
     return apiError("server_error", result.message, 500);
   }
+
+  await recordAudit({
+    action: "task.status_changed",
+    entityType: "task",
+    entityId: params.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Status of "${task.title}": ${task.status} → ${parsed.data.to_status}`,
+    metadata: {
+      from: task.status,
+      to: parsed.data.to_status,
+      note: parsed.data.note ?? null,
+    },
+    ip: clientIp(req),
+  });
 
   return apiOk({ task: result.task, history: result.history });
 }

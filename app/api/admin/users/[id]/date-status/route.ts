@@ -9,6 +9,8 @@ import {
   listDateStatusForUser,
   upsertDateStatus,
 } from "@/lib/dao/user-date-status";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -34,7 +36,7 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   let body: unknown;
   try {
@@ -62,6 +64,22 @@ export async function POST(
     is_active: parsed.data.is_active,
     note: parsed.data.note ?? null,
   });
+
+  await recordAudit({
+    action: "admin.date_status_set",
+    entityType: "user",
+    entityId: params.id,
+    actorId: admin.userId,
+    actorEmail: admin.email,
+    summary: `Marked ${user.full_name} ${parsed.data.is_active ? "active" : "inactive"} on ${parsed.data.date}`,
+    metadata: {
+      date: parsed.data.date,
+      is_active: parsed.data.is_active,
+      note: parsed.data.note ?? null,
+    },
+    ip: clientIp(req),
+  });
+
   return apiOk({ row });
 }
 
@@ -69,7 +87,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   let body: unknown;
   try {
@@ -89,5 +107,17 @@ export async function DELETE(
   }
 
   const removed = await deleteDateStatus(params.id, parsed.data.date);
+
+  await recordAudit({
+    action: "admin.date_status_removed",
+    entityType: "user",
+    entityId: params.id,
+    actorId: admin.userId,
+    actorEmail: admin.email,
+    summary: `Removed the date override on ${parsed.data.date}`,
+    metadata: { date: parsed.data.date },
+    ip: clientIp(req),
+  });
+
   return apiOk({ removed });
 }

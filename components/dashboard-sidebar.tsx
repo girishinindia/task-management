@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
+  History,
   LayoutDashboard,
   ListTodo,
+  ScrollText,
   Sun,
   Shield,
 } from "lucide-react";
@@ -52,10 +54,23 @@ const ITEMS: NavItem[] = [
     match: (p) => p.startsWith("/dashboard/notifications"),
   },
   {
+    href: "/dashboard/activity",
+    label: "My activity",
+    icon: <History className="h-4 w-4" />,
+    match: (p) => p.startsWith("/dashboard/activity"),
+  },
+  {
     href: "/admin/users",
     label: "Admin",
     icon: <Shield className="h-4 w-4" />,
-    match: (p) => p.startsWith("/admin"),
+    match: (p) => p.startsWith("/admin/users"),
+    adminOnly: true,
+  },
+  {
+    href: "/admin/audit",
+    label: "Audit log",
+    icon: <ScrollText className="h-4 w-4" />,
+    match: (p) => p.startsWith("/admin/audit"),
     adminOnly: true,
   },
 ];

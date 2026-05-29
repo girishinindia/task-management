@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canReadTask, getTask } from "@/lib/dao/tasks";
 import { deleteAttachment, getAttachment } from "@/lib/dao/attachments";
 import { deleteFromBunny } from "@/lib/bunny";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -16,7 +18,7 @@ export const runtime = "nodejs";
  *  delete so the row doesn't outlive the storage.
  */
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string; attId: string } }
 ) {
   const me = await requireUser();
@@ -53,5 +55,17 @@ export async function DELETE(
   }
 
   const removed = await deleteAttachment(att.id);
+
+  await recordAudit({
+    action: "attachment.removed",
+    entityType: "attachment",
+    entityId: att.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Removed attachment "${att.original_name ?? att.link_url ?? att.id}"`,
+    metadata: { task_id: params.id, kind: att.kind },
+    ip: clientIp(req),
+  });
+
   return apiOk({ removed });
 }

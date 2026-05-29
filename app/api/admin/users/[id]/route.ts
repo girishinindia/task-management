@@ -2,6 +2,8 @@ import { requireAdmin } from "@/lib/auth";
 import { adminUpdateUserSchema } from "@/lib/schemas/admin";
 import { findUserById, toPublic, updateUser } from "@/lib/dao/users";
 import { revokeAllSessions } from "@/lib/redis";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -54,9 +56,23 @@ export async function PATCH(
 
   // If the user was just deactivated, revoke every session they have so they
   // can't keep using the app on an old cookie.
-  if (before.is_active && after.is_active === false) {
+  const deactivated = before.is_active && after.is_active === false;
+  if (deactivated) {
     await revokeAllSessions(after.id);
   }
+
+  await recordAudit({
+    action: "admin.user_updated",
+    entityType: "user",
+    entityId: after.id,
+    actorId: admin.userId,
+    actorEmail: admin.email,
+    summary: deactivated
+      ? `Deactivated user ${after.email}`
+      : `Updated user ${after.email}`,
+    metadata: { changes: parsed.data, deactivated },
+    ip: clientIp(req),
+  });
 
   return apiOk({ user: toPublic(after) });
 }

@@ -6,6 +6,8 @@ import {
   setAssignments,
 } from "@/lib/dao/assignments";
 import { setAssignmentsSchema } from "@/lib/schemas/assignments";
+import { recordAudit } from "@/lib/dao/audit";
+import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -91,5 +93,17 @@ export async function POST(
     user_ids: parsed.data.user_ids,
     assigned_by: me.userId,
   });
+
+  await recordAudit({
+    action: "task.assignees_set",
+    entityType: "task",
+    entityId: task.id,
+    actorId: me.userId,
+    actorEmail: me.email,
+    summary: `Updated assignees on "${task.title}"`,
+    metadata: { user_ids: parsed.data.user_ids },
+    ip: clientIp(req),
+  });
+
   return apiOk({ assignees });
 }
