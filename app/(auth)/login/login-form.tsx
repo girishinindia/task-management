@@ -9,6 +9,7 @@ import { loginSchema, type LoginInput } from "@/lib/schemas/auth";
 import { useRecaptcha } from "@/lib/captcha-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
@@ -73,9 +74,8 @@ export function LoginForm() {
 
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           {...form.register("password")}
         />

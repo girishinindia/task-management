@@ -9,6 +9,7 @@ import { signupSchema, type SignupInput } from "@/lib/schemas/auth";
 import { useRecaptcha } from "@/lib/captcha-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 export function SignupForm() {
@@ -97,9 +98,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
           {...form.register("password")}
         />
@@ -116,9 +116,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <Label htmlFor="confirm_password">Confirm password</Label>
-        <Input
+        <PasswordInput
           id="confirm_password"
-          type="password"
           autoComplete="new-password"
           {...form.register("confirm_password")}
         />
