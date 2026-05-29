@@ -23,6 +23,12 @@ export function buildAttachmentPath(taskId: string, originalName: string) {
   return `tasks/${taskId}/${randomUUID()}-${safeName}`;
 }
 
+/** Build the storage path used inside the zone for a comment attachment. */
+export function buildCommentAttachmentPath(taskId: string, originalName: string) {
+  const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
+  return `tasks/${taskId}/comments/${randomUUID()}-${safeName}`;
+}
+
 /** Public CDN URL for a stored object path. */
 export function cdnUrl(path: string) {
   return `${env.BUNNY_CDN_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
@@ -118,4 +124,33 @@ export function isAllowedAttachment(fileName: string, mime: string): boolean {
   const dot = fileName.lastIndexOf(".");
   const ext = dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
   return ext.length > 0 && ALLOWED_ATTACHMENT_EXTENSIONS.has(ext);
+}
+
+// ── Comment attachments (a stricter subset: images, PDF, Word only) ──────────
+export const COMMENT_ATTACHMENT_MIME = new Set<string>([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export const COMMENT_ATTACHMENT_EXTENSIONS = new Set<string>([
+  "png", "jpg", "jpeg", "gif", "webp", "pdf", "doc", "docx",
+]);
+
+export const MAX_COMMENT_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/** Comment attachments allow images, PDF, and Word docs only. */
+export function isAllowedCommentAttachment(
+  fileName: string,
+  mime: string
+): boolean {
+  if (COMMENT_ATTACHMENT_MIME.has(mime)) return true;
+  const dot = fileName.lastIndexOf(".");
+  const ext = dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
+  return ext.length > 0 && COMMENT_ATTACHMENT_EXTENSIONS.has(ext);
 }

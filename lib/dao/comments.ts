@@ -11,16 +11,27 @@ export interface CommentRow {
   task_id: string;
   author_id: string | null;
   body: string;
+  attachment_url: string | null;
+  attachment_name: string | null;
+  attachment_mime: string | null;
   created_at: Date;
   updated_at: Date;
   author_full_name: string | null;
   author_email: string | null;
 }
 
+export interface CommentAttachment {
+  url: string;
+  name: string;
+  mime: string;
+}
+
 /** Comments for a task, oldest first. */
 export async function listComments(taskId: string): Promise<CommentRow[]> {
   return sql<CommentRow[]>`
-    select c.id, c.task_id, c.author_id, c.body, c.created_at, c.updated_at,
+    select c.id, c.task_id, c.author_id, c.body,
+           c.attachment_url, c.attachment_name, c.attachment_mime,
+           c.created_at, c.updated_at,
            u.full_name   as author_full_name,
            u.email::text as author_email
       from task.task_comments c
@@ -33,13 +44,20 @@ export async function listComments(taskId: string): Promise<CommentRow[]> {
 export async function addComment(
   taskId: string,
   authorId: string,
-  body: string
+  body: string,
+  attachment?: CommentAttachment | null
 ): Promise<CommentRow> {
   const rows = await sql<CommentRow[]>`
     with ins as (
-      insert into task.task_comments (task_id, author_id, body)
-      values (${taskId}::uuid, ${authorId}::uuid, ${body})
-      returning id, task_id, author_id, body, created_at, updated_at
+      insert into task.task_comments
+        (task_id, author_id, body, attachment_url, attachment_name, attachment_mime)
+      values (
+        ${taskId}::uuid, ${authorId}::uuid, ${body},
+        ${attachment?.url ?? null}, ${attachment?.name ?? null}, ${attachment?.mime ?? null}
+      )
+      returning id, task_id, author_id, body,
+                attachment_url, attachment_name, attachment_mime,
+                created_at, updated_at
     )
     select ins.*, u.full_name as author_full_name, u.email::text as author_email
       from ins left join task.users u on u.id = ins.author_id
@@ -50,7 +68,9 @@ export async function addComment(
 /** Fetch one comment (used for delete permission checks). */
 export async function getComment(id: number): Promise<CommentRow | null> {
   const rows = await sql<CommentRow[]>`
-    select c.id, c.task_id, c.author_id, c.body, c.created_at, c.updated_at,
+    select c.id, c.task_id, c.author_id, c.body,
+           c.attachment_url, c.attachment_name, c.attachment_mime,
+           c.created_at, c.updated_at,
            u.full_name as author_full_name, u.email::text as author_email
       from task.task_comments c
       left join task.users u on u.id = c.author_id

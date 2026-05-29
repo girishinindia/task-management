@@ -53,7 +53,16 @@ export async function POST(
     );
   }
 
-  const comment = await addComment(params.id, me.userId, parsed.data.body);
+  const attachment = parsed.data.attachment_url
+    ? {
+        url: parsed.data.attachment_url,
+        name: parsed.data.attachment_name ?? "attachment",
+        mime: parsed.data.attachment_mime ?? "application/octet-stream",
+      }
+    : null;
+
+  const commentBody = parsed.data.body?.trim() ?? "";
+  const comment = await addComment(params.id, me.userId, commentBody, attachment);
 
   // Notify the task creator + current assignees, excluding the author.
   const assignees = await listAssigneesForTask(params.id);
@@ -62,10 +71,8 @@ export async function POST(
     ...assignees.map((a) => a.user_id),
   ].filter((uid) => uid && uid !== me.userId);
   if (recipients.length > 0) {
-    const excerpt =
-      parsed.data.body.length > 140
-        ? `${parsed.data.body.slice(0, 137)}…`
-        : parsed.data.body;
+    const base = commentBody || (attachment ? `📎 ${attachment.name}` : "");
+    const excerpt = base.length > 140 ? `${base.slice(0, 137)}…` : base;
     await notifyUsers(recipients, {
       type: "comment_added",
       title: `New comment on "${task.title}"`,

@@ -39,6 +39,7 @@ import {
   localDate,
   priorityVariant,
 } from "./task-meta";
+import { formatTime12 } from "@/lib/date";
 import { RowStatusMenu } from "./row-status-menu";
 
 export function TasksTable({
@@ -248,6 +249,11 @@ export function TasksTable({
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {t.due_date ? format(localDate(t.due_date), "PP") : "—"}
+                    {t.due_date && t.due_time ? (
+                      <span className="block text-[11px]">
+                        {formatTime12(t.due_time)}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {format(new Date(t.updated_at), "PP")}

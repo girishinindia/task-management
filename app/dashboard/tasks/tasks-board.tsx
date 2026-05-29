@@ -20,6 +20,7 @@ import {
   priorityVariant,
   statusVariant,
 } from "./task-meta";
+import { formatTime12 } from "@/lib/date";
 import { RowStatusMenu } from "./row-status-menu";
 import { cn } from "@/lib/utils";
 
@@ -207,7 +208,9 @@ export function TasksBoard({
                       >
                         {overdue ? <AlertCircle className="h-3 w-3" /> : null}
                         {t.due_date
-                          ? format(localDate(t.due_date), "dd MMM")
+                          ? `${format(localDate(t.due_date), "dd MMM")}${
+                              t.due_time ? `, ${formatTime12(t.due_time)}` : ""
+                            }`
                           : "No date"}
                       </span>
                       <AvatarStack users={assignees} max={3} size="sm" />

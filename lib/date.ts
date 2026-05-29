@@ -47,3 +47,21 @@ export function isValidDateString(s: string | null | undefined): s is string {
     dt.getUTCDate() === d
   );
 }
+
+/** Type guard for a 24-hour "HH:MM" (or "HH:MM:SS") time-of-day string. */
+export function isValidTimeString(s: string | null | undefined): s is string {
+  if (!s) return false;
+  return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(s);
+}
+
+/** Format a "HH:MM[:SS]" 24h string as a friendly 12h label, e.g. "2:05 PM".
+ *  Returns "" for an invalid/empty input. */
+export function formatTime12(s: string | null | undefined): string {
+  if (!isValidTimeString(s)) return "";
+  const [hStr, mStr] = s.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}

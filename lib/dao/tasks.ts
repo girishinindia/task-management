@@ -24,6 +24,8 @@ export interface TaskRow {
   priority: TaskPriority;
   start_date: string | null; // YYYY-MM-DD
   due_date: string | null; // YYYY-MM-DD
+  start_time: string | null; // HH:MM (24h), optional time-of-day
+  due_time: string | null; // HH:MM (24h), optional time-of-day
   project_id: string;
   is_active: boolean;
   /** daily | weekly | monthly, or null for a one-off task. */
@@ -39,6 +41,8 @@ const SELECT_COLS = sql`
   id, title, description, status, priority,
   to_char(start_date, 'YYYY-MM-DD') as start_date,
   to_char(due_date,   'YYYY-MM-DD') as due_date,
+  to_char(start_time, 'HH24:MI') as start_time,
+  to_char(due_time,   'HH24:MI') as due_time,
   project_id, is_active, recur_rule, created_by, created_at, updated_at
 `;
 
@@ -331,7 +335,7 @@ export async function createTask(
     const rows = await sql<TaskRow[]>`
       insert into task.tasks (
         title, description, status, priority, start_date, due_date,
-        project_id, recur_rule, created_by
+        start_time, due_time, project_id, recur_rule, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -339,6 +343,8 @@ export async function createTask(
         ${input.priority},
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
+        ${input.start_time ?? null}::time,
+        ${input.due_time ?? null}::time,
         ${input.project_id}::uuid,
         ${input.recur_rule ?? null}::text,
         ${createdBy}::uuid
@@ -353,7 +359,7 @@ export async function createTask(
     const inserted = await t<TaskRow[]>`
       insert into task.tasks (
         title, description, status, priority, start_date, due_date,
-        project_id, recur_rule, created_by
+        start_time, due_time, project_id, recur_rule, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -361,6 +367,8 @@ export async function createTask(
         ${input.priority},
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
+        ${input.start_time ?? null}::time,
+        ${input.due_time ?? null}::time,
         ${input.project_id}::uuid,
         ${input.recur_rule ?? null}::text,
         ${createdBy}::uuid
@@ -408,6 +416,14 @@ export async function updateTask(
                            when ${input.due_date === undefined}::bool then due_date
                            else ${input.due_date ?? null}::date
                          end,
+           start_time  = case
+                           when ${input.start_time === undefined}::bool then start_time
+                           else ${input.start_time ?? null}::time
+                         end,
+           due_time    = case
+                           when ${input.due_time === undefined}::bool then due_time
+                           else ${input.due_time ?? null}::time
+                         end,
            recur_rule  = case
                            when ${input.recur_rule === undefined}::bool then recur_rule
                            else ${input.recur_rule ?? null}::text
@@ -439,6 +455,8 @@ export async function regenerateRecurring(
     status: "pending",
     start_date: start ?? undefined,
     due_date: due ?? undefined,
+    start_time: task.start_time ?? undefined,
+    due_time: task.due_time ?? undefined,
     recur_rule: task.recur_rule,
     assignee_ids: assignees.map((a) => a.user_id),
   });

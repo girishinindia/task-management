@@ -2,7 +2,7 @@
  * Zod schemas for task CRUD. Shared by the form, the API routes, and the DAO.
  */
 import { z } from "zod";
-import { isValidDateString } from "@/lib/date";
+import { isValidDateString, isValidTimeString } from "@/lib/date";
 
 export const TASK_STATUSES = [
   "pending",
@@ -23,6 +23,19 @@ const optionalDate = z
   .preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     isoDate.optional()
+  )
+  .nullable()
+  .optional();
+
+const isoTime = z
+  .string()
+  .refine(isValidTimeString, "Time must be HH:MM");
+
+/** Treat "" as undefined so empty time inputs don't trip the regex. */
+const optionalTime = z
+  .preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    isoTime.optional()
   )
   .nullable()
   .optional();
@@ -49,6 +62,8 @@ export const taskCreateSchema = z
     status: z.enum(TASK_STATUSES).default("pending"),
     start_date: optionalDate,
     due_date: optionalDate,
+    start_time: optionalTime,
+    due_time: optionalTime,
     recur_rule: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
     assignee_ids: z.array(z.string().uuid()).max(50).optional().default([]),
   })
@@ -58,7 +73,15 @@ export const taskCreateSchema = z
       message: "Due date must be on or after the start date",
       path: ["due_date"],
     }
-  );
+  )
+  .refine((v) => !v.start_time || !!v.start_date, {
+    message: "Set a start date before a start time",
+    path: ["start_time"],
+  })
+  .refine((v) => !v.due_time || !!v.due_date, {
+    message: "Set a due date before a due time",
+    path: ["due_time"],
+  });
 
 export const taskUpdateSchema = z
   .object({
@@ -68,6 +91,8 @@ export const taskUpdateSchema = z
     status: z.enum(TASK_STATUSES).optional(),
     start_date: optionalDate,
     due_date: optionalDate,
+    start_time: optionalTime,
+    due_time: optionalTime,
     recur_rule: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {

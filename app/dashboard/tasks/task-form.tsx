@@ -49,6 +49,8 @@ const emptyValues: TaskFormValues = {
   priority: "medium",
   start_date: "",
   due_date: "",
+  start_time: "",
+  due_time: "",
   recur_rule: null,
   assignee_ids: [],
 };
@@ -68,6 +70,8 @@ export function TaskForm({
       ...(initial as Partial<TaskFormValues>),
       start_date: initial?.start_date ?? "",
       due_date: initial?.due_date ?? "",
+      start_time: initial?.start_time ?? "",
+      due_time: initial?.due_time ?? "",
       description: initial?.description ?? "",
       recur_rule: initial?.recur_rule ?? null,
     },
@@ -87,6 +91,8 @@ export function TaskForm({
       description: rest.description?.toString().trim() || null,
       start_date: rest.start_date || null,
       due_date: rest.due_date || null,
+      start_time: rest.start_time || null,
+      due_time: rest.due_time || null,
     };
 
     const res = await fetch(url, {
@@ -230,27 +236,55 @@ export function TaskForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="start_date">Start date</Label>
-          <Input
-            id="start_date"
-            type="date"
-            min="2000-01-01"
-            max="2100-12-31"
-            {...form.register("start_date")}
-          />
+          <Label htmlFor="start_date">Start date &amp; time</Label>
+          <div className="flex gap-2">
+            <Input
+              id="start_date"
+              type="date"
+              min="2000-01-01"
+              max="2100-12-31"
+              className="flex-1"
+              {...form.register("start_date")}
+            />
+            <Input
+              type="time"
+              aria-label="Start time"
+              className="w-[130px]"
+              {...form.register("start_time")}
+            />
+          </div>
+          {form.formState.errors.start_time ? (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.start_time.message}
+            </p>
+          ) : null}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="due_date">Due date</Label>
-          <Input
-            id="due_date"
-            type="date"
-            min="2000-01-01"
-            max="2100-12-31"
-            {...form.register("due_date")}
-          />
+          <Label htmlFor="due_date">Due date &amp; time</Label>
+          <div className="flex gap-2">
+            <Input
+              id="due_date"
+              type="date"
+              min="2000-01-01"
+              max="2100-12-31"
+              className="flex-1"
+              {...form.register("due_date")}
+            />
+            <Input
+              type="time"
+              aria-label="Due time"
+              className="w-[130px]"
+              {...form.register("due_time")}
+            />
+          </div>
           {form.formState.errors.due_date ? (
             <p className="text-xs text-destructive">
               {form.formState.errors.due_date.message}
+            </p>
+          ) : null}
+          {form.formState.errors.due_time ? (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.due_time.message}
             </p>
           ) : null}
         </div>

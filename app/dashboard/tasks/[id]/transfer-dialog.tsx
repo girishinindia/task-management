@@ -180,23 +180,31 @@ export function TransferDialog(props: TransferDialogProps) {
                       <Loader2 className="mx-auto mb-1 h-4 w-4 animate-spin" />
                       Loading…
                     </div>
-                  ) : users.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                      No active users.
-                    </div>
                   ) : (
-                    users.map((u) => (
-                      <SelectItem
-                        key={u.id}
-                        value={u.id}
-                        disabled={u.inactive_on_date}
-                      >
-                        {u.full_name} — {u.email}
-                        {u.inactive_on_date
-                          ? ` · inactive on ${props.dueDate}`
-                          : ""}
-                      </SelectItem>
-                    ))
+                    (() => {
+                      // You can't transfer a task to yourself, so hide the
+                      // current user from the target list.
+                      const targets = users.filter((u) => u.id !== props.meId);
+                      if (targets.length === 0) {
+                        return (
+                          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                            No other users to transfer to.
+                          </div>
+                        );
+                      }
+                      return targets.map((u) => (
+                        <SelectItem
+                          key={u.id}
+                          value={u.id}
+                          disabled={u.inactive_on_date}
+                        >
+                          {u.full_name} — {u.email}
+                          {u.inactive_on_date
+                            ? ` · inactive on ${props.dueDate}`
+                            : ""}
+                        </SelectItem>
+                      ));
+                    })()
                   )}
                 </SelectContent>
               </Select>

@@ -18,11 +18,12 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 - Task transfer with an audit trail
 - Attachments (file uploads + URL links)
 - Notifications (bell, list, live updates)
+- Task dates with an optional **time of day** (start/due)
 - Date-based views (Today, Calendar with per-day task hints, date filters)
 - Task views: list table **and** Kanban board (toggle on All tasks) **with drag-and-drop**
 - Sort options + locally-saved views; Active / Archived / All filter
 - Bulk actions (multi-select → status / priority / archive)
-- Comments and subtask checklists on a task
+- Comments (with an optional image/PDF/Word attachment) and subtask checklists on a task
 - Due-today / overdue reminders in notifications (warning colors)
 - Recurring tasks (daily / weekly / monthly, regenerated on completion)
 - Projects with per-project teams and admins; edit/rename a project; Project / Assignee / Important filters
@@ -61,7 +62,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 Confirm all of these once before testing:
 
 1. **Dev server is running** for *this* project (the `task-management` folder). In the terminal you should see `Local: http://localhost:PORT`. Use that exact port below — it may be `3000`, or `3001` if another app already holds `3000`.
-2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007` → `0008` → `0009` → `0010`. Without these the `task.*` tables don't exist and every page will error. (`0007` = audit log; `0008` = Projects + default **"General"** project; `0009` = `users.is_super_admin` (promotes the earliest admin to **super admin** — adjust with `update task.users set is_super_admin=true where email='you@example.com';`) + `tasks.is_active` archive flag; `0010` = task **comments**, **subtasks** (checklist), `tasks.recur_rule` (recurring), and the **password-reset requests** queue. Without `0008`–`0010` the tasks pages error on the missing columns.)
+2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007` → `0008` → `0009` → `0010` → `0011`. Without these the `task.*` tables don't exist and every page will error. (`0007` = audit log; `0008` = Projects + default **"General"** project; `0009` = `users.is_super_admin` (promotes the earliest admin to **super admin** — adjust with `update task.users set is_super_admin=true where email='you@example.com';`) + `tasks.is_active` archive flag; `0010` = task **comments**, **subtasks** (checklist), `tasks.recur_rule` (recurring), and the **password-reset requests** queue; `0011` = `tasks.start_time`/`due_time` (time-of-day) and `task_comments.attachment_*` (image/PDF/Word file on a comment). Without `0008`–`0011` the tasks pages error on the missing columns.)
 3. **Redis REST is configured** in `.env.local` (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). Login creates a session in Redis, so sign-in fails without it.
 4. **At least one admin exists.** Create one from the terminal:
    ```
@@ -147,6 +148,7 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 1. In **Window A**, sidebar → **All tasks** → **New task** (or use **New task** on the dashboard).
 2. Create **Task 1**: Title `Design new landing page hero`, a short description, **Priority** = High, **Start date** = today, **Due date** = today + 2 days. Under **Assignees**, pick **Priya**. Click **Create task**. ✅ Redirected to the task detail page; status shows **Pending**; Priya listed under assignees.
 3. Create **Tasks 2–7** the same way using the Section 4 table. For **Task 5**, pick **both Sneha and Priya** as assignees. For **Task 6** and **Task 7**, leave start/due empty except Task 7's due = **yesterday**.
+   - **Times (optional).** Each date field has a matching **time** box. On **Task 2**, set a **due time** (e.g. 17:00). ✅ The detail page shows "Due … · 5:00 PM" and the list/board show the time under the date. A time can't be set without its date (✅ inline error). Editing the task preloads the saved time. (Overdue/reminders are still evaluated by day.)
 4. ✅ Note: new tasks always start as **Pending** — there's no status field on the create form by design. (Status is changed later via the status menu so every change is audited.)
 
 ### Flow 4 — Multi-user visibility & assignment
@@ -169,6 +171,7 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 2. **Window B (Priya)** → **All tasks** / **bell**. ✅ Task 4 now appears for Priya, and she receives a **task transferred / assigned** notification.
 3. ✅ Karan no longer sees Task 4 in his list (verify by signing in as Karan in a spare Incognito window if desired).
 4. **Regular users can't transfer.** In **Window B (Priya)**, open a task she's assigned to. ✅ There is **no Transfer button** — transferring is admin-only.
+5. **Can't transfer to yourself.** As the admin doing the transfer, open the **Transfer to** dropdown. ✅ Your own name is **not listed** (you can't hand a task back to yourself). A direct API call with `to_user_id` = your own id returns **400** ("You can't transfer a task to yourself").
 
 ### Flow 7 — Attachments (file + URL)
 
@@ -269,8 +272,9 @@ On any task detail page (open as anyone who can see the task):
 
 1. **Comments.** Scroll to **Comments**, type a message, **Comment** (or ⌘/Ctrl+Enter). ✅ It appears immediately with your name + "just now". Anyone who can see the task can post.
 2. **Comment notifications.** As **Rahul** comment on a task assigned to **Priya**. ✅ Priya gets an **indigo** `comment_added` notification linking to the task; the author is not notified.
-3. **Delete a comment.** ✅ You can delete **your own** comment (trash icon); a **super admin** can delete any; others see no delete icon.
-4. **Checklist (subtasks).** In the **Checklist** section add items ("Draft copy", "Get sign-off"). ✅ Each appears; ticking one strikes it through and the **progress bar / x-of-y / %** updates. Items persist on refresh. Anyone who can see the task can add/tick/delete items.
+3. **Comment with an attachment.** Click **Attach**, pick an **image, PDF, or Word** file (≤10 MB). ✅ A chip shows the filename; post the comment. The comment renders the image as a thumbnail (click to open) or shows a file link for PDF/Word. ✅ A wrong type (e.g. `.zip`, `.exe`) or an oversized file is rejected with a clear message. A comment can be **attachment-only** (no text).
+4. **Delete a comment.** ✅ You can delete **your own** comment (trash icon); a **super admin** can delete any; others see no delete icon.
+5. **Checklist (subtasks).** In the **Checklist** section add items ("Draft copy", "Get sign-off"). ✅ Each appears; ticking one strikes it through and the **progress bar / x-of-y / %** updates. Items persist on refresh. Anyone who can see the task can add/tick/delete items.
 
 ### Flow 18 — Recurring tasks + due/overdue reminders
 
@@ -330,7 +334,10 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Only super admins create projects; admins get "Request a project" and super admins are notified
 - [ ] Admins can Deactivate (archive) a task; only super admins can hard-delete (API 403 otherwise); archived tasks leave the lists and can be reactivated
 - [ ] Notifications fire for assign, transfer, status, task edit, and attachment — color-coded by type
+- [ ] Task dates accept an optional time; it shows on detail/list/board, preloads on edit, and a time without its date is rejected
 - [ ] Comments: post / see / delete-own (super admin deletes any); assignees+creator get an indigo notification
+- [ ] Comment attachment: image/PDF/Word only (≤10 MB) — image shows a thumbnail, others a file link; wrong type rejected; attachment-only comment allowed
+- [ ] Transfer "to" dropdown excludes the current user; self-transfer via API returns 400
 - [ ] Checklist (subtasks): add / tick / delete; progress bar + x-of-y update and persist
 - [ ] Recurring task shows a "Repeats …" badge and spawns the next occurrence (dates shifted) when marked Done
 - [ ] Due-today (amber) and overdue (red) reminders appear in notifications, once per task per day

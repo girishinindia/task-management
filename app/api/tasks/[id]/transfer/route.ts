@@ -37,6 +37,15 @@ export async function POST(
     );
   }
 
+  // You can't transfer a task to yourself.
+  if (parsed.data.to_user_id === me.userId) {
+    return apiError(
+      "self_transfer",
+      "You can't transfer a task to yourself.",
+      400
+    );
+  }
+
   const task = await getTask(params.id);
   if (!task) return apiError("not_found", "Task not found", 404);
 

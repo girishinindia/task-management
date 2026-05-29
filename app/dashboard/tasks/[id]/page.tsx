@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ArrowLeft, Repeat } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { RECUR_LABEL } from "@/lib/recurrence";
+import { formatTime12 } from "@/lib/date";
 import {
   canReadTask,
   getTask,
@@ -159,6 +160,9 @@ export default async function TaskDetailPage({
             priority: task.priority,
             start_date: task.start_date ?? "",
             due_date: task.due_date ?? "",
+            start_time: task.start_time ?? "",
+            due_time: task.due_time ?? "",
+            recur_rule: task.recur_rule,
           }}
         />
       ) : (
@@ -166,6 +170,8 @@ export default async function TaskDetailPage({
           description={task.description}
           startDate={task.start_date}
           dueDate={task.due_date}
+          startTime={task.start_time}
+          dueTime={task.due_time}
         />
       )}
 
@@ -210,6 +216,9 @@ export default async function TaskDetailPage({
           author_id: c.author_id,
           author_name: c.author_full_name ?? "Unknown",
           body: c.body,
+          attachment_url: c.attachment_url,
+          attachment_name: c.attachment_name,
+          attachment_mime: c.attachment_mime,
           created_at: new Date(c.created_at).toISOString(),
         }))}
       />
@@ -225,11 +234,25 @@ function ReadOnlyView({
   description,
   startDate,
   dueDate,
+  startTime,
+  dueTime,
 }: {
   description: string | null;
   startDate: string | null;
   dueDate: string | null;
+  startTime: string | null;
+  dueTime: string | null;
 }) {
+  const start = startDate
+    ? `${format(localDate(startDate), "PP")}${
+        startTime ? ` · ${formatTime12(startTime)}` : ""
+      }`
+    : "—";
+  const due = dueDate
+    ? `${format(localDate(dueDate), "PP")}${
+        dueTime ? ` · ${formatTime12(dueTime)}` : ""
+      }`
+    : "—";
   return (
     <section className="space-y-4 rounded-lg border bg-card p-6">
       <div>
@@ -243,19 +266,15 @@ function ReadOnlyView({
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Start date
+            Start
           </h2>
-          <p className="mt-1">
-            {startDate ? format(localDate(startDate), "PP") : "—"}
-          </p>
+          <p className="mt-1">{start}</p>
         </div>
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Due date
+            Due
           </h2>
-          <p className="mt-1">
-            {dueDate ? format(localDate(dueDate), "PP") : "—"}
-          </p>
+          <p className="mt-1">{due}</p>
         </div>
       </div>
     </section>
