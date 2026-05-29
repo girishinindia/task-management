@@ -69,3 +69,6 @@ task-manager-development-phases.md
 
 # Supabase local files (migrations, config, .branches, .temp)
 supabase/
+
+
+.env.local.example
