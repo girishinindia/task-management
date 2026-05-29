@@ -38,7 +38,6 @@ logs/
 # env files (secrets) — keep *.example templates tracked
 .env
 .env.*
-!.env*.example
 
 # vercel
 .vercel
