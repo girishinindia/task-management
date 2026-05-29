@@ -145,7 +145,7 @@ Only admins can create tasks, so create all of these as **Admin** (Window A). Re
 1. **Window C (Rahul)** → open **Task 2 (Implement auth rate limiting)** → use the **status menu** on the detail page: set **In progress**, optionally add a note. ✅ Status badge updates to "In progress"; an entry appears in the **activity timeline** ("Rahul changed status … ").
 2. Move it again to **Done**. ✅ Timeline shows both transitions in order with timestamps.
 3. Watch the **bell** in another window: since Rahul owns/created interactions on his own task, notifications are generated for relevant recipients (e.g., task owner/assignees other than the actor). ✅ The notifications bell shows an unread dot where applicable.
-4. Edit a task's details: open **Task 1** as Admin → **Edit** → change priority to Medium, save. ✅ Toast "Task updated"; detail reflects the change.
+4. **Edit task fields, including priority (admin only).** Open **Task 1** as Admin → the detail page shows an **Edit** form (regular users get a read-only view instead). Change **Priority** to Medium and save. ✅ Toast "Task updated"; the priority badge updates. Note the deliberate asymmetry: **status** has a quick inline dropdown for assignees, but **priority / title / dates / description** are changed only here in the Edit form — and only admins can. There is no separate "change priority" control for regular users by design.
 
 ### Flow 6 — Task transfer (reassign) with audit trail
 
@@ -158,8 +158,9 @@ Only admins can create tasks, so create all of these as **Admin** (Window A). Re
 
 1. **Window B (Priya)** → open **Task 1** → **Attachments** section → **upload a file** (e.g. a small PNG or PDF, under 50 MB). ✅ The file uploads and shows with a working link served from the Bunny CDN (`cdn.growupmore.com`). Files are public links (token authentication is off).
 2. Add a **URL link** attachment: paste `https://www.figma.com` with label `Design file`. ✅ The link appears with its label and opens in a new tab.
-3. Try an invalid URL (`not-a-url`) and an oversized/blocked file type. ✅ Each is rejected with a clear message.
-4. Remove an attachment **you uploaded**. ✅ It disappears. (A regular user only sees the delete icon on attachments they added; admins can remove any.)
+3. **Allowed types incl. ZIP.** Upload a **.zip** file. ✅ It's accepted — acceptance is by MIME *or* file extension, so ZIPs work even when the browser reports an odd type like `application/x-zip-compressed` or `application/octet-stream`. Images, video, PDF, Office docs, and plain text work the same way.
+4. Try a genuinely disallowed type (e.g. a `.exe`), an oversized file (>50 MB), and an invalid URL (`not-a-url`). ✅ Each is rejected with a clear message.
+5. Remove an attachment **you uploaded**. ✅ It disappears. (A regular user only sees the delete icon on attachments they added; admins can remove any.)
 
 ### Flow 8 — Notifications (bell, list, live SSE)
 
@@ -208,7 +209,7 @@ Run these as **Priya** (Window B), a regular user — this is the core test of t
 
 ### Flow 13 — UI polish spot-checks
 
-1. **Dark mode**: toggle the theme switch in the header. ✅ The whole app switches to the dark sky theme cleanly; text stays readable.
+1. **Dark mode**: toggle the theme switch in the header, then walk through **Calendar**, **Notifications**, **All tasks**, a **task detail**, and (after signing out) the **landing page**. ✅ Everything stays readable in dark mode — in particular the Calendar's **Today** button and month-nav arrows, the **unread** notification rows, and the attachment **drop-zone** must show their text/icons (no white-on-white boxes). Toggle back to light and confirm both themes look right.
 2. **Empty states**: as a brand-new user with no tasks, the dashboard and Today view show friendly empty messages.
 3. **Responsive**: narrow the window. ✅ Sidebar collapses to icons; layout stays usable.
 
@@ -259,6 +260,8 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Failed login attempts appear as `auth.login_failed` (blank actor, attempted email + IP)
 - [ ] Audit log action filter, search, and pagination work
 - [ ] "My activity" shows each user only their own actions (no actor column)
+- [ ] Priority is editable only by admins via the Edit form; regular users see it read-only (status stays separately changeable)
+- [ ] Dark mode: all text/buttons readable — Calendar Today/nav buttons, unread notification rows, attachment drop-zone, landing page — no white-on-white
 
 ---
 

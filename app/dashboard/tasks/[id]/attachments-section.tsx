@@ -239,7 +239,7 @@ export function AttachmentsSection(props: AttachmentsSectionProps) {
         className={cn(
           "rounded-md border-2 border-dashed px-4 py-6 text-center text-xs transition-colors",
           dragOver
-            ? "border-primary bg-brand-50 text-brand-700"
+            ? "border-primary bg-primary/10 text-primary"
             : "border-border text-muted-foreground"
         )}
         onDragOver={(e) => {

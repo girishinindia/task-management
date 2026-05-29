@@ -2,10 +2,10 @@ import { requireUser } from "@/lib/auth";
 import { canReadTask, getTask } from "@/lib/dao/tasks";
 import { insertFileAttachment } from "@/lib/dao/attachments";
 import {
-  ALLOWED_ATTACHMENT_MIME,
   MAX_ATTACHMENT_BYTES,
   buildAttachmentPath,
   cdnUrl,
+  isAllowedAttachment,
   uploadToBunny,
 } from "@/lib/bunny";
 import { recordAudit } from "@/lib/dao/audit";
@@ -65,12 +65,12 @@ export async function POST(
   }
 
   const mime = file.type || "application/octet-stream";
-  if (!ALLOWED_ATTACHMENT_MIME.has(mime)) {
+  if (!isAllowedAttachment(file.name, mime)) {
     return apiError(
       "mime_not_allowed",
-      `${mime} is not an allowed attachment type`,
+      `"${file.name}" (${mime}) is not an allowed attachment type`,
       415,
-      { mime }
+      { mime, name: file.name }
     );
   }
 

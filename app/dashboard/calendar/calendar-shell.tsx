@@ -65,7 +65,10 @@ export function CalendarShell(props: CalendarShellProps) {
             asChild
             variant="outline"
             size="sm"
-            className={cn(thisMonth === todayMonth(today) && "bg-brand-50")}
+            className={cn(
+              thisMonth === todayMonth(today) &&
+                "border-primary/40 bg-primary/10 text-primary"
+            )}
           >
             <Link href={`/dashboard/calendar?month=${todayMonth(today)}`}>
               <CalendarDays className="mr-1 h-4 w-4" /> Today
@@ -104,7 +107,7 @@ export function CalendarShell(props: CalendarShellProps) {
                 className={cn(
                   "group relative flex h-24 flex-col items-stretch border-b border-r p-2 text-left transition-colors hover:bg-accent/40",
                   !isThis && "bg-muted/20 text-muted-foreground",
-                  isToday && "bg-brand-50/60"
+                  isToday && "bg-primary/10"
                 )}
               >
                 <div className="flex items-center justify-between">

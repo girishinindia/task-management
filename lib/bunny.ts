@@ -80,6 +80,10 @@ export const ALLOWED_ATTACHMENT_MIME = new Set<string>([
   // documents
   "application/pdf",
   "application/zip",
+  // ZIP variants browsers actually send (Windows often uses x-zip-compressed)
+  "application/x-zip-compressed",
+  "application/x-zip",
+  "multipart/x-zip",
   "text/plain",
   "text/csv",
   "application/msword",
@@ -91,3 +95,27 @@ export const ALLOWED_ATTACHMENT_MIME = new Set<string>([
 ]);
 
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50 MB
+
+/**
+ * Allowed file extensions — a fallback for when the browser reports a vague or
+ * wrong MIME type (e.g. a ZIP sent as application/octet-stream, or a CSV sent
+ * as application/vnd.ms-excel). Mirrors ALLOWED_ATTACHMENT_MIME.
+ */
+export const ALLOWED_ATTACHMENT_EXTENSIONS = new Set<string>([
+  "png", "jpg", "jpeg", "gif", "webp", "svg",
+  "mp4", "webm", "mov",
+  "pdf", "zip", "txt", "csv",
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+]);
+
+/**
+ * Accept an upload if its MIME type is allowed OR its file extension is —
+ * browsers are inconsistent about MIME types, so the extension is a reliable
+ * fallback (this is what makes .zip uploads work everywhere).
+ */
+export function isAllowedAttachment(fileName: string, mime: string): boolean {
+  if (ALLOWED_ATTACHMENT_MIME.has(mime)) return true;
+  const dot = fileName.lastIndexOf(".");
+  const ext = dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
+  return ext.length > 0 && ALLOWED_ATTACHMENT_EXTENSIONS.has(ext);
+}

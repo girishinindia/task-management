@@ -111,7 +111,7 @@ export default async function NotificationsPage({
                         href={n.link ?? "#"}
                         className={cn(
                           "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
-                          !n.is_read && "bg-brand-50/50"
+                          !n.is_read && "bg-primary/10"
                         )}
                       >
                         <span

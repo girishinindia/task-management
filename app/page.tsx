@@ -71,7 +71,7 @@ export default function Home() {
       {/* Hero */}
       <section className="container relative py-20 md:py-28">
         <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-brand-200/70 bg-white/70 px-4 py-1.5 text-xs font-medium text-brand-700 shadow-soft backdrop-blur">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary shadow-soft backdrop-blur">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
             Date-based · Multi-user · Built on Next.js &amp; Supabase
           </span>
@@ -98,7 +98,7 @@ export default function Home() {
               asChild
               size="lg"
               variant="outline"
-              className="bg-white/60 backdrop-blur"
+              className="bg-background/60 backdrop-blur"
             >
               <Link href="/login">I already have an account</Link>
             </Button>
@@ -115,7 +115,7 @@ export default function Home() {
           {features.map(({ icon: Icon, title, body }) => (
             <div
               key={title}
-              className="group rounded-2xl border border-brand-100/70 bg-white/80 p-6 shadow-soft backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-lg"
+              className="group rounded-2xl border border-brand-100/70 bg-card/80 p-6 shadow-soft backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-lg"
             >
               <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-sky-50 to-sky-100 text-brand-600 ring-1 ring-brand-100 transition-colors group-hover:from-sky-100 group-hover:to-sky-200">
                 <Icon className="h-5 w-5" />
