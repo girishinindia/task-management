@@ -92,22 +92,33 @@ export async function listSuperAdminIds(): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-/** Manage = create/edit/delete/transfer/assign within a project.
- *  Super admin (any project) OR an admin-tier user who belongs to the project. */
+/** Manage = create/edit/delete/transfer/assign within a project. Granted to:
+ *   - a super admin (any project), OR
+ *   - a **project-level admin** of this project (project_members.role = 'admin'),
+ *     whatever their workspace role — this is the key: a workspace "user" who
+ *     was made a project admin still manages that project, OR
+ *   - a workspace admin (users.role = 'admin') who belongs to the project. */
 export async function canManageProject(
   userId: string,
   role: UserRole,
   projectId: string
 ): Promise<boolean> {
-  const rows = await sql<{ is_super: boolean; is_member: boolean }[]>`
+  const rows = await sql<
+    { is_super: boolean; project_role: ProjectRole | null }[]
+  >`
     select
       coalesce((select is_super_admin from task.users where id = ${userId}::uuid), false) as is_super,
-      exists (select 1 from task.project_members pm
-               where pm.project_id = ${projectId}::uuid
-                 and pm.user_id = ${userId}::uuid) as is_member
+      (select pm.role from task.project_members pm
+        where pm.project_id = ${projectId}::uuid
+          and pm.user_id = ${userId}::uuid) as project_role
   `;
   const r = rows[0];
-  return !!r?.is_super || (role === "admin" && !!r?.is_member);
+  const isMember = r?.project_role != null;
+  return (
+    !!r?.is_super ||
+    r?.project_role === "admin" ||
+    (role === "admin" && isMember)
+  );
 }
 
 /** Access = see the project's tasks. Super admin OR any member. */
@@ -133,23 +144,47 @@ export async function listProjectMembers(
   `;
 }
 
-/** Projects the user can create tasks in (project admin) — admin sees all. */
+/** Projects the user can manage (create/edit/assign/transfer tasks in):
+ *   - super admin → all projects
+ *   - project-level admins → the projects where they're a project admin
+ *     (regardless of their workspace role)
+ *   - workspace admins → any project they belong to */
 export async function listManageableProjects(
   userId: string,
   role: UserRole
 ): Promise<ProjectRow[]> {
   const sup = await isSuperAdmin(userId);
-  // Members (role 'user') manage nothing. Admin-tier users manage projects
-  // they belong to; super admins manage all.
-  if (!sup && role !== "admin") return [];
+  const isWorkspaceAdmin = role === "admin";
   return sql<ProjectRow[]>`
     select p.id, p.name, p.description, p.created_by, p.created_at, p.updated_at
       from task.projects p
      where ${sup}::bool
-        or exists (select 1 from task.project_members m
-                    where m.project_id = p.id and m.user_id = ${userId}::uuid)
+        or exists (
+          select 1 from task.project_members m
+           where m.project_id = p.id
+             and m.user_id = ${userId}::uuid
+             and (m.role = 'admin' or ${isWorkspaceAdmin}::bool)
+        )
      order by p.name asc
   `;
+}
+
+/** Cheap boolean: does the user manage at least one project? Drives the
+ *  "New task" affordances without listing every project. */
+export async function hasManageableProject(
+  userId: string,
+  role: UserRole
+): Promise<boolean> {
+  if (await isSuperAdmin(userId)) return true;
+  const isWorkspaceAdmin = role === "admin";
+  const rows = await sql<{ ok: boolean }[]>`
+    select exists (
+      select 1 from task.project_members m
+       where m.user_id = ${userId}::uuid
+         and (m.role = 'admin' or ${isWorkspaceAdmin}::bool)
+    ) as ok
+  `;
+  return rows[0]?.ok ?? false;
 }
 
 // ── Mutations ───────────────────────────────────────────────────────────────

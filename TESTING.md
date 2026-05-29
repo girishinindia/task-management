@@ -53,7 +53,9 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 | Bulk priority / archive | ✅ | ✅ their projects | ❌ |
 | See tasks | all | their projects | their projects |
 
-> Note: visibility is now fully project-scoped. **Super admins** see every task; a non-super **admin** and a **user** both see only tasks in projects they belong to (an admin additionally *manages* those projects). All management rules are enforced in the API, not just hidden in the UI.
+> Note: visibility is now fully project-scoped. **Super admins** see every task; a non-super **admin** and a **user** both see only tasks in projects they belong to. All management rules are enforced in the API, not just hidden in the UI.
+>
+> **"Admin" of a project ≠ workspace role.** Management of a project's tasks (create / edit / assign / transfer / status-beyond-member / archive) is granted to anyone who is a **project admin** — i.e. `project_members.role = 'admin'` for that project — *regardless of their workspace `users.role`*. So a person whose workspace role is **User** but who was added to a project as its **Admin** can fully manage that project's tasks (and sees the **New task** button). Workspace **admins** additionally manage any project they belong to; **super admins** manage everything. A plain project **member** stays read-only + status reports.
 
 ---
 
@@ -329,6 +331,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
 - [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
+- [ ] A **workspace "User"** who is a **project admin** can assign/transfer/edit that project's tasks and sees **New task** (regression check for project-vs-workspace role)
 - [ ] Task visibility is project-scoped — you only see tasks in projects you belong to (workspace admin sees all)
 - [ ] New task requires a Project; the assignee picker is limited to that project's members — and so are **Manage assignees** (detail page) and **Transfer to** (non-members never shown; server 400s if attempted)
 - [ ] Project, Assignee, and ★ Important (high-priority) filters work on All tasks

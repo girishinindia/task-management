@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { findUserById } from "@/lib/dao/users";
 import { countTasksForUser } from "@/lib/dao/tasks";
 import { listRecentActivity } from "@/lib/dao/activity";
+import { hasManageableProject } from "@/lib/dao/projects";
 import {
   Card,
   CardContent,
@@ -19,10 +20,11 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const u = await requireUser();
-  const [profile, counts, activity] = await Promise.all([
+  const [profile, counts, activity, canCreate] = await Promise.all([
     findUserById(u.userId),
     countTasksForUser(u.userId, u.role),
     listRecentActivity(u.userId, u.role, 20),
+    hasManageableProject(u.userId, u.role),
   ]);
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
@@ -37,7 +39,7 @@ export default async function DashboardPage() {
             : `${counts.open} open task${counts.open === 1 ? "" : "s"} on your plate.`
         }
       >
-        {u.role === "admin" ? (
+        {canCreate ? (
           <Button asChild>
             <Link href="/dashboard/tasks/new">
               <Plus className="h-4 w-4" /> New task

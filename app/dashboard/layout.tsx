@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth";
+import { hasManageableProject } from "@/lib/dao/projects";
 import { SiteHeader } from "@/components/site-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { HotkeyHost } from "@/components/hotkey-host";
@@ -12,6 +13,9 @@ export default async function DashboardLayout({
   // and also checks Redis so revoked tokens are caught even if the cookie
   // hasn't expired yet.
   const user = await requireUser();
+  // Anyone who manages at least one project (super admin, workspace admin in a
+  // project, or a project-level admin) can create tasks via the "c" shortcut.
+  const canCreate = await hasManageableProject(user.userId, user.role);
 
   return (
     <div className="min-h-screen bg-hero-wash">
@@ -22,7 +26,7 @@ export default async function DashboardLayout({
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
-      <HotkeyHost canCreate={user.role === "admin"} />
+      <HotkeyHost canCreate={canCreate} />
     </div>
   );
 }

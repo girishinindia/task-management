@@ -9,6 +9,7 @@ import {
   type TaskRow,
 } from "@/lib/dao/tasks";
 import { listAssigneesForTasks } from "@/lib/dao/assignments";
+import { hasManageableProject } from "@/lib/dao/projects";
 import { todayIso } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,10 +38,11 @@ export default async function TodayPage() {
   const me = await requireUser();
   const today = todayIso();
 
-  const [todayTasks, noDateCount, noDateTasks] = await Promise.all([
+  const [todayTasks, noDateCount, noDateTasks, canCreate] = await Promise.all([
     listTasksForDate(me.userId, me.role, today),
     countNoDateTasks(me.userId, me.role),
     listTasksForUser(me.userId, me.role, { no_date: true, limit: 50 }),
+    hasManageableProject(me.userId, me.role),
   ]);
 
   const allIds = [
@@ -75,7 +77,7 @@ export default async function TodayPage() {
             ) : null}
           </p>
         </div>
-        {me.role === "admin" ? (
+        {canCreate ? (
           <Button asChild>
             <Link href="/dashboard/tasks/new">
               <Plus className="h-4 w-4" /> New task
