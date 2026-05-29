@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: type-check · lint · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Placeholder env values that satisfy the zod schema at build time.
+    # They are NOT used to talk to any real service — they just let
+    # lib/env.ts parse successfully so `next build` can run.
+    env:
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      DATABASE_URL: postgres://ci:ci@localhost:5432/postgres
+      DB_SCHEMA: task
+      JWT_ACCESS_SECRET: ci-access-secret-with-at-least-32-chars-aaa
+      JWT_REFRESH_SECRET: ci-refresh-secret-with-at-least-32-chars-bbb
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      UPSTASH_REDIS_REST_URL: https://example.upstash.io
+      UPSTASH_REDIS_REST_TOKEN: ci-upstash-token
+      BUNNY_STORAGE_ZONE: ci-zone
+      BUNNY_STORAGE_KEY: ci-bunny-key
+      BUNNY_STORAGE_URL: https://example.storage.bunnycdn.com/ci-zone
+      BUNNY_CDN_URL: https://example.b-cdn.net
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build

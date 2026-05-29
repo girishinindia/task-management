@@ -1,0 +1,592 @@
+/**
+ * Tasks data access.
+ *
+ * Phase 5 scope: a user sees tasks they CREATED. Phase 6 will widen reads to
+ * include tasks they're assigned to. Permission checks live in app code
+ * (mutation helpers take an actor + role and decide).
+ */
+import { sql, tx } from "@/lib/db";
+import { insertAssignments } from "@/lib/dao/assignments";
+import type {
+  TaskCreateInput,
+  TaskPriority,
+  TaskStatus,
+  TaskUpdateInput,
+} from "@/lib/schemas/tasks";
+import type { UserRole } from "@/lib/jwt";
+
+export interface TaskRow {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  start_date: string | null; // YYYY-MM-DD
+  due_date: string | null; // YYYY-MM-DD
+  created_by: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+const SELECT_COLS = sql`
+  id, title, description, status, priority,
+  to_char(start_date, 'YYYY-MM-DD') as start_date,
+  to_char(due_date,   'YYYY-MM-DD') as due_date,
+  created_by, created_at, updated_at
+`;
+
+// ── Reads ───────────────────────────────────────────────────────────────────
+
+export type TaskScope = "all" | "created" | "assigned";
+
+export interface ListTasksOptions {
+  scope?: TaskScope;
+  status?: TaskStatus | "all";
+  priority?: TaskPriority | "all";
+  search?: string;
+  /** ISO YYYY-MM-DD. Filters to tasks whose [effective_from, effective_to]
+   *  overlaps [from, to]. effective_from = coalesce(start_date, due_date),
+   *  effective_to = coalesce(due_date, start_date). */
+  from?: string | null;
+  to?: string | null;
+  /** When true, returns ONLY tasks with no start_date AND no due_date.
+   *  Overrides from/to/overdue. */
+  no_date?: boolean;
+  /** When true, returns ONLY tasks where due_date < current_date AND
+   *  status NOT IN ('done','cancelled'). Combines with other filters. */
+  overdue?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/** Tasks visible to a user.
+ *
+ *   scope "all"      → created OR assigned (default for non-admins)
+ *   scope "created"  → created_by = me
+ *   scope "assigned" → me in task_assignments
+ *
+ * Admins always see every task regardless of scope filter (scope is treated
+ * as a personal view filter, not a permission filter).
+ */
+export async function listTasksForUser(
+  userId: string,
+  role: UserRole,
+  opts: ListTasksOptions = {}
+): Promise<TaskRow[]> {
+  const scope: TaskScope = opts.scope ?? "all";
+  const status = opts.status && opts.status !== "all" ? opts.status : null;
+  const priority =
+    opts.priority && opts.priority !== "all" ? opts.priority : null;
+  const search = opts.search?.trim();
+  const like = search ? `%${search.toLowerCase()}%` : null;
+  const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
+  const offset = Math.max(opts.offset ?? 0, 0);
+
+  const isAdmin = role === "admin";
+  const wantCreated = scope === "all" || scope === "created";
+  const wantAssigned = scope === "all" || scope === "assigned";
+
+  // Date filters: no_date overrides from/to. Overdue is a separate boolean
+  // and combines with the rest.
+  const noDate = opts.no_date === true;
+  const from = !noDate && opts.from ? opts.from : null;
+  const to = !noDate && opts.to ? opts.to : null;
+  const overdue = opts.overdue === true;
+
+  return sql<TaskRow[]>`
+    select ${SELECT_COLS}
+      from task.tasks t
+     where
+       (${isAdmin}::bool
+         or (${wantCreated}::bool and t.created_by = ${userId}::uuid)
+         or (${wantAssigned}::bool
+             and exists (
+               select 1 from task.task_assignments a
+                where a.task_id = t.id and a.user_id = ${userId}::uuid
+             )))
+       and (${status}::task.task_status is null or t.status = ${status}::task.task_status)
+       and (${priority}::task.task_priority is null or t.priority = ${priority}::task.task_priority)
+       and (${like}::text is null
+            or lower(t.title) like ${like}::text
+            or lower(coalesce(t.description, '')) like ${like}::text)
+       and (${noDate}::bool = false
+            or (t.start_date is null and t.due_date is null))
+       and (${from}::date is null
+            or coalesce(t.due_date, t.start_date) >= ${from}::date)
+       and (${to}::date is null
+            or coalesce(t.start_date, t.due_date) <= ${to}::date)
+       and (${overdue}::bool = false
+            or (t.due_date < current_date
+                and t.status not in ('done','cancelled')))
+     order by
+       case when t.due_date is null then 1 else 0 end,
+       t.due_date asc,
+       t.created_at desc
+     limit ${limit} offset ${offset}
+  `;
+}
+
+/** Tasks visible to the user that occupy the given ISO date. Same overlap
+ *  semantics as the calendar grid: a task occupies day d when
+ *  coalesce(start_date, due_date) <= d <= coalesce(due_date, start_date). */
+export async function listTasksForDate(
+  userId: string,
+  role: UserRole,
+  iso: string
+): Promise<TaskRow[]> {
+  return listTasksForUser(userId, role, { from: iso, to: iso, limit: 500 });
+}
+
+/** Per-day task counts in [from, to] for the calendar grid. Wraps the
+ *  task.task_day_counts RPC. Returns a map of ISO day -> count. */
+export async function dayCounts(
+  userId: string,
+  role: UserRole,
+  from: string,
+  to: string
+): Promise<Record<string, number>> {
+  const rows = await sql<{ day: string; n: string }[]>`
+    select to_char(day, 'YYYY-MM-DD') as day, n::text as n
+      from task.task_day_counts(
+        ${userId}::uuid,
+        ${role}::task.user_role,
+        ${from}::date,
+        ${to}::date
+      )
+  `;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.day] = Number(r.n);
+  return out;
+}
+
+/** Count of tasks visible to the user with NO dates at all. Used by the
+ *  "No date" sidebar/chip count. */
+export async function countNoDateTasks(
+  userId: string,
+  role: UserRole
+): Promise<number> {
+  const isAdmin = role === "admin";
+  const rows = await sql<{ n: string }[]>`
+    select count(*)::text as n
+      from task.tasks t
+     where t.start_date is null
+       and t.due_date is null
+       and (${isAdmin}::bool
+            or t.created_by = ${userId}::uuid
+            or exists (select 1 from task.task_assignments a
+                        where a.task_id = t.id and a.user_id = ${userId}::uuid))
+  `;
+  return Number(rows[0]?.n ?? 0);
+}
+
+export async function getTask(id: string): Promise<TaskRow | null> {
+  const rows = await sql<TaskRow[]>`
+    select ${SELECT_COLS} from task.tasks where id = ${id}::uuid limit 1
+  `;
+  return rows[0] ?? null;
+}
+
+/** Used by the dashboard cards. Counts tasks the user can see (created OR
+ *  assigned, or all for admins). */
+export async function countTasksForUser(
+  userId: string,
+  role: UserRole
+): Promise<{
+  open: number;
+  due_today: number;
+  overdue: number;
+  done_recently: number;
+}> {
+  const isAdmin = role === "admin";
+  const rows = await sql<
+    {
+      open: string;
+      due_today: string;
+      overdue: string;
+      done_recently: string;
+    }[]
+  >`
+    select
+      count(*) filter (where t.status not in ('done','cancelled'))::text                  as open,
+      count(*) filter (where t.due_date = current_date
+                         and t.status not in ('done','cancelled'))::text                  as due_today,
+      count(*) filter (where t.due_date < current_date
+                         and t.status not in ('done','cancelled'))::text                  as overdue,
+      count(*) filter (where t.status = 'done'
+                         and t.updated_at >= current_date - interval '7 days')::text      as done_recently
+    from task.tasks t
+    where ${isAdmin}::bool
+       or t.created_by = ${userId}::uuid
+       or exists (
+         select 1 from task.task_assignments a
+          where a.task_id = t.id and a.user_id = ${userId}::uuid
+       )
+  `;
+  const r = rows[0];
+  return {
+    open: Number(r.open),
+    due_today: Number(r.due_today),
+    overdue: Number(r.overdue),
+    done_recently: Number(r.done_recently),
+  };
+}
+
+/** Can a user READ this task?
+ *   - admin always
+ *   - creator always
+ *   - assignee always
+ */
+export async function canReadTask(
+  taskId: string,
+  actorId: string,
+  role: UserRole
+): Promise<boolean> {
+  if (role === "admin") return true;
+  const rows = await sql<{ ok: boolean }[]>`
+    select (t.created_by = ${actorId}::uuid
+            or exists (select 1 from task.task_assignments a
+                        where a.task_id = t.id
+                          and a.user_id = ${actorId}::uuid)) as ok
+      from task.tasks t
+     where t.id = ${taskId}::uuid
+     limit 1
+  `;
+  return rows[0]?.ok ?? false;
+}
+
+// ── Writes ──────────────────────────────────────────────────────────────────
+
+export async function createTask(
+  createdBy: string,
+  input: TaskCreateInput
+): Promise<TaskRow> {
+  const assigneeIds = input.assignee_ids ?? [];
+
+  if (assigneeIds.length === 0) {
+    const rows = await sql<TaskRow[]>`
+      insert into task.tasks (
+        title, description, status, priority, start_date, due_date, created_by
+      ) values (
+        ${input.title},
+        ${input.description ?? null},
+        ${input.status},
+        ${input.priority},
+        ${input.start_date ?? null}::date,
+        ${input.due_date ?? null}::date,
+        ${createdBy}::uuid
+      )
+      returning ${SELECT_COLS}
+    `;
+    return rows[0];
+  }
+
+  // Task + initial assignees in one transaction.
+  return tx<TaskRow>(async (t) => {
+    const inserted = await t<TaskRow[]>`
+      insert into task.tasks (
+        title, description, status, priority, start_date, due_date, created_by
+      ) values (
+        ${input.title},
+        ${input.description ?? null},
+        ${input.status},
+        ${input.priority},
+        ${input.start_date ?? null}::date,
+        ${input.due_date ?? null}::date,
+        ${createdBy}::uuid
+      )
+      returning ${SELECT_COLS}
+    `;
+    const task = inserted[0]!;
+    await insertAssignments(t, task.id, assigneeIds, createdBy);
+    return task;
+  });
+}
+
+/** Whether the actor can mutate this task. Phase 5: creator or admin. */
+export function canMutate(
+  task: TaskRow,
+  actorId: string,
+  role: UserRole
+): boolean {
+  return role === "admin" || task.created_by === actorId;
+}
+
+/** Update task fields. Phase 8: status is INTENTIONALLY not writable here —
+ *  status changes must route through changeTaskStatus() so they're atomic
+ *  with task_status_history. */
+export async function updateTask(
+  id: string,
+  input: Omit<TaskUpdateInput, "status">
+): Promise<TaskRow | null> {
+  const rows = await sql<TaskRow[]>`
+    update task.tasks
+       set title       = coalesce(${input.title ?? null}::text, title),
+           description = case
+                           when ${input.description === undefined}::bool then description
+                           else ${input.description ?? null}::text
+                         end,
+           priority    = coalesce(${input.priority ?? null}::task.task_priority, priority),
+           start_date  = case
+                           when ${input.start_date === undefined}::bool then start_date
+                           else ${input.start_date ?? null}::date
+                         end,
+           due_date    = case
+                           when ${input.due_date === undefined}::bool then due_date
+                           else ${input.due_date ?? null}::date
+                         end
+     where id = ${id}::uuid
+    returning ${SELECT_COLS}
+  `;
+  return rows[0] ?? null;
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    delete from task.tasks where id = ${id}::uuid returning id
+  `;
+  return rows.length > 0;
+}
+
+// ── Status workflow ────────────────────────────────────────────────────────
+
+/** Legal status transitions matrix (mirrors the SQL function). Defined in
+ *  `@/lib/schemas/status` — a client-safe module — so UI menus can import it
+ *  without pulling this server-only file (and postgres) into the browser
+ *  bundle. Re-exported here for server-side callers. */
+export { LEGAL_TRANSITIONS } from "@/lib/schemas/status";
+
+export type ChangeStatusResult =
+  | {
+      ok: true;
+      history: {
+        id: number;
+        task_id: string;
+        from_status: TaskStatus | null;
+        to_status: TaskStatus;
+        changed_by: string | null;
+        changed_at: Date;
+        note: string | null;
+      };
+      task: TaskRow;
+    }
+  | { ok: false; reason: "not_found" | "illegal_transition"; message: string };
+
+/** Change a task's status via task.change_task_status RPC. Atomic with
+ *  task_status_history insert + notification fan-out trigger. Returns a typed
+ *  result so callers can map Postgres errors to API error codes. */
+export async function changeTaskStatus(opts: {
+  task_id: string;
+  to_status: TaskStatus;
+  actor_id: string;
+  note?: string | null;
+}): Promise<ChangeStatusResult> {
+  try {
+    const rows = await sql<
+      {
+        id: number;
+        task_id: string;
+        from_status: TaskStatus | null;
+        to_status: TaskStatus;
+        changed_by: string | null;
+        changed_at: Date;
+        note: string | null;
+      }[]
+    >`
+      select * from task.change_task_status(
+        ${opts.task_id}::uuid,
+        ${opts.to_status}::task.task_status,
+        ${opts.actor_id}::uuid,
+        ${opts.note ?? null}::text
+      )
+    `;
+    const history = rows[0]!;
+    const refreshed = await getTask(opts.task_id);
+    if (!refreshed) {
+      return {
+        ok: false,
+        reason: "not_found",
+        message: "Task disappeared after status change",
+      };
+    }
+    return { ok: true, history, task: refreshed };
+  } catch (e) {
+    // postgres.js surfaces SQLSTATE on err.code
+    const code =
+      typeof e === "object" && e !== null && "code" in e
+        ? (e as { code?: string }).code
+        : undefined;
+    if (code === "P0002") {
+      return { ok: false, reason: "not_found", message: "Task not found" };
+    }
+    if (code === "22023") {
+      const msg =
+        e instanceof Error ? e.message : "Illegal status transition";
+      return { ok: false, reason: "illegal_transition", message: msg };
+    }
+    throw e;
+  }
+}
+
+export interface StatusHistoryRow {
+  id: number;
+  task_id: string;
+  from_status: TaskStatus | null;
+  to_status: TaskStatus;
+  changed_by: string | null;
+  changed_at: Date;
+  note: string | null;
+  /** Joined: human display for the actor. */
+  actor_full_name: string | null;
+  actor_email: string | null;
+}
+
+// ── Transfers ──────────────────────────────────────────────────────────────
+
+export type TransferResult =
+  | {
+      ok: true;
+      transfer: {
+        id: number;
+        task_id: string;
+        from_user_id: string | null;
+        to_user_id: string;
+        transferred_by: string | null;
+        transferred_at: Date;
+        reason: string | null;
+      };
+      task: TaskRow;
+    }
+  | {
+      ok: false;
+      reason:
+        | "target_inactive"
+        | "target_inactive_on_date"
+        | "from_not_assigned"
+        | "not_found";
+      message: string;
+    };
+
+/** Atomically reassign a task via task.transfer_task RPC.
+ *  - p_from_user: optional. If provided, must currently be assigned (else
+ *    'from_not_assigned'). If null, just adds the new assignment.
+ *  - p_to_user: required. Must be globally active and active on due_date (if set). */
+export async function transferTask(opts: {
+  task_id: string;
+  from_user_id: string | null;
+  to_user_id: string;
+  actor_id: string;
+  reason?: string | null;
+}): Promise<TransferResult> {
+  try {
+    const rows = await sql<
+      {
+        id: number;
+        task_id: string;
+        from_user_id: string | null;
+        to_user_id: string;
+        transferred_by: string | null;
+        transferred_at: Date;
+        reason: string | null;
+      }[]
+    >`
+      select * from task.transfer_task(
+        ${opts.task_id}::uuid,
+        ${opts.from_user_id}::uuid,
+        ${opts.to_user_id}::uuid,
+        ${opts.actor_id}::uuid,
+        ${opts.reason ?? null}::text
+      )
+    `;
+    const transfer = rows[0]!;
+    const refreshed = await getTask(opts.task_id);
+    if (!refreshed) {
+      return {
+        ok: false,
+        reason: "not_found",
+        message: "Task disappeared after transfer",
+      };
+    }
+    return { ok: true, transfer, task: refreshed };
+  } catch (e) {
+    const code =
+      typeof e === "object" && e !== null && "code" in e
+        ? (e as { code?: string }).code
+        : undefined;
+    const message = e instanceof Error ? e.message : "Transfer failed";
+
+    // Both target-active checks use SQLSTATE 22023 in the RPC; tell them apart
+    // by the message text. P0002 surfaces only from "from_user not assigned".
+    if (code === "P0002") {
+      return {
+        ok: false,
+        reason: "from_not_assigned",
+        message: "Source user is not currently assigned to this task",
+      };
+    }
+    if (code === "22023") {
+      if (message.toLowerCase().includes("due date")) {
+        return {
+          ok: false,
+          reason: "target_inactive_on_date",
+          message,
+        };
+      }
+      return { ok: false, reason: "target_inactive", message };
+    }
+    throw e;
+  }
+}
+
+export interface TransferRow {
+  id: number;
+  task_id: string;
+  from_user_id: string | null;
+  to_user_id: string;
+  transferred_by: string | null;
+  transferred_at: Date;
+  reason: string | null;
+  from_full_name: string | null;
+  from_email: string | null;
+  to_full_name: string | null;
+  to_email: string | null;
+  actor_full_name: string | null;
+  actor_email: string | null;
+}
+
+/** Transfer history for a task, newest first. Joins users 3x (from/to/actor). */
+export async function listTransferHistory(
+  taskId: string
+): Promise<TransferRow[]> {
+  return sql<TransferRow[]>`
+    select t.id, t.task_id, t.from_user_id, t.to_user_id,
+           t.transferred_by, t.transferred_at, t.reason,
+           uf.full_name   as from_full_name,
+           uf.email::text as from_email,
+           ut.full_name   as to_full_name,
+           ut.email::text as to_email,
+           ua.full_name   as actor_full_name,
+           ua.email::text as actor_email
+      from task.task_transfers t
+      left join task.users uf on uf.id = t.from_user_id
+      left join task.users ut on ut.id = t.to_user_id
+      left join task.users ua on ua.id = t.transferred_by
+     where t.task_id = ${taskId}::uuid
+     order by t.transferred_at desc, t.id desc
+  `;
+}
+
+/** Chronological status history for a task, newest first. */
+export async function listStatusHistory(
+  taskId: string
+): Promise<StatusHistoryRow[]> {
+  return sql<StatusHistoryRow[]>`
+    select h.id, h.task_id, h.from_status, h.to_status,
+           h.changed_by, h.changed_at, h.note,
+           u.full_name        as actor_full_name,
+           u.email::text      as actor_email
+      from task.task_status_history h
+      left join task.users u on u.id = h.changed_by
+     where h.task_id = ${taskId}::uuid
+     order by h.changed_at desc, h.id desc
+  `;
+}

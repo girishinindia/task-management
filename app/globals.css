@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────────────────────
+   Soft light-blue theme — shadcn token mapping.
+   Primary   → sky-500 (#0ea5e9)
+   Surfaces  → near-white with a cool sky tint
+   Accents   → sky-50 / sky-100
+   Generous radius + soft, sky-tinted shadows for an airy feel.
+   ──────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    --background: 204 100% 99%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 100% 97%;
+    --secondary-foreground: 200 89% 28%;
+
+    --muted: 205 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 199 95% 94%;
+    --accent-foreground: 200 89% 28%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 40% 93%;
+    --input: 213 32% 90%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 45% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 45% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 199 89% 58%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 16%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 200 60% 20%;
+    --accent-foreground: 199 95% 90%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 199 89% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  body {
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* Soft, sky-tinted shadows */
+  .shadow-soft {
+    box-shadow:
+      0 1px 2px rgba(2, 132, 199, 0.04),
+      0 10px 30px -16px rgba(2, 132, 199, 0.2);
+  }
+  .shadow-soft-lg {
+    box-shadow:
+      0 2px 6px rgba(2, 132, 199, 0.05),
+      0 28px 56px -28px rgba(2, 132, 199, 0.28);
+  }
+  /* Frosted surface for sticky bars */
+  .glass {
+    background-color: hsl(var(--background) / 0.72);
+    backdrop-filter: saturate(180%) blur(10px);
+  }
+}
+
+/* Radial brand wash for hero / auth backgrounds */
+.bg-hero-wash {
+  background:
+    radial-gradient(1200px 600px at 90% -10%, rgba(56, 189, 248, 0.14), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(125, 211, 252, 0.18), transparent 60%),
+    radial-gradient(700px 500px at 50% 120%, rgba(186, 230, 253, 0.12), transparent 60%),
+    hsl(var(--background));
+}
+
+/* Subtle dotted texture for hero / empty states */
+.bg-dotted {
+  background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

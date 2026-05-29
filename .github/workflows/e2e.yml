@@ -1,0 +1,64 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # All of these MUST be set as GitHub Actions secrets pointing at a
+    # disposable test environment (separate Supabase project + Upstash DB +
+    # optional Bunny zone). The suite mutates data.
+    env:
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      DB_SCHEMA: task
+      SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      JWT_ACCESS_SECRET: ${{ secrets.E2E_JWT_ACCESS_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.E2E_JWT_REFRESH_SECRET }}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      UPSTASH_REDIS_REST_URL: ${{ secrets.E2E_UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.E2E_UPSTASH_REDIS_REST_TOKEN }}
+      BUNNY_STORAGE_ZONE: ${{ secrets.E2E_BUNNY_STORAGE_ZONE }}
+      BUNNY_STORAGE_KEY: ${{ secrets.E2E_BUNNY_STORAGE_KEY }}
+      BUNNY_STORAGE_URL: ${{ secrets.E2E_BUNNY_STORAGE_URL }}
+      BUNNY_CDN_URL: ${{ secrets.E2E_BUNNY_CDN_URL }}
+      ALLOW_PUBLIC_SIGNUP: "true"
+      RECAPTCHA_ENABLED: "false"
+      NEXT_PUBLIC_RECAPTCHA_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke suite
+        run: npm run test:e2e
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
