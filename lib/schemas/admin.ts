@@ -10,6 +10,14 @@ const password = z
   .max(100, "Password is too long")
   .regex(/[0-9]/, "Password must contain at least one number");
 
+export const adminSetPasswordSchema = z.object({
+  password,
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().toLowerCase(),
+});
+
 export const adminCreateUserSchema = z.object({
   full_name: z.string().trim().min(2).max(100),
   email: z.string().trim().email().toLowerCase(),

@@ -11,6 +11,7 @@ import {
 import { listActiveAssignableUsers } from "@/lib/dao/users";
 import { Button } from "@/components/ui/button";
 import { ProjectMembers } from "@/components/projects/project-members";
+import { EditProjectDialog } from "@/components/projects/edit-project-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +48,20 @@ export default async function ProjectDetailPage({
             </p>
           ) : null}
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/dashboard/tasks?project_id=${project.id}`}>
-            <ListChecks className="h-4 w-4" /> View tasks
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {canManage ? (
+            <EditProjectDialog
+              projectId={project.id}
+              initialName={project.name}
+              initialDescription={project.description ?? ""}
+            />
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/dashboard/tasks?project_id=${project.id}`}>
+              <ListChecks className="h-4 w-4" /> View tasks
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <ProjectMembers

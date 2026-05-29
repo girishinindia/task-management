@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
 import {
+  AlertTriangle,
   ArrowRightLeft,
   Bell,
+  CalendarClock,
   CheckCheck,
   FolderPlus,
   Inbox,
+  KeyRound,
+  MessageSquare,
   Paperclip,
   Pencil,
   RefreshCcw,
@@ -14,6 +18,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import {
   countUnread,
+  ensureDueReminders,
   listNotifications,
   type NotificationRow,
 } from "@/lib/dao/notifications";
@@ -32,6 +37,10 @@ function iconForType(type: string) {
   if (type === "task_updated") return Pencil;
   if (type === "attachment_added") return Paperclip;
   if (type === "project_requested") return FolderPlus;
+  if (type === "comment_added") return MessageSquare;
+  if (type === "task_overdue") return AlertTriangle;
+  if (type === "task_due_soon") return CalendarClock;
+  if (type === "password_reset_requested") return KeyRound;
   return Bell;
 }
 
@@ -50,6 +59,14 @@ function colorForType(type: string): string {
       return "bg-cyan-100 text-cyan-700";
     case "project_requested":
       return "bg-fuchsia-100 text-fuchsia-700";
+    case "comment_added":
+      return "bg-indigo-100 text-indigo-700";
+    case "task_due_soon":
+      return "bg-amber-100 text-amber-700";
+    case "task_overdue":
+      return "bg-red-100 text-red-700";
+    case "password_reset_requested":
+      return "bg-orange-100 text-orange-700";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -74,6 +91,12 @@ export default async function NotificationsPage({
 }) {
   const me = await requireUser();
   const scope = searchParams.scope === "unread" ? "unread" : "all";
+
+  try {
+    await ensureDueReminders(me.userId);
+  } catch {
+    /* non-fatal */
+  }
 
   const [rows, unread] = await Promise.all([
     listNotifications(me.userId, { scope, limit: 100 }),

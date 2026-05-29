@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Repeat } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { RECUR_LABEL } from "@/lib/recurrence";
 import {
   canReadTask,
   getTask,
@@ -12,6 +13,8 @@ import {
 import { canManageProject, isSuperAdmin } from "@/lib/dao/projects";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
 import { listAttachmentsForTask } from "@/lib/dao/attachments";
+import { listComments } from "@/lib/dao/comments";
+import { listSubtasks } from "@/lib/dao/subtasks";
 import { findUserById } from "@/lib/dao/users";
 import { cdnUrl } from "@/lib/bunny";
 import { Button } from "@/components/ui/button";
@@ -31,6 +34,8 @@ import {
 } from "../task-meta";
 import { DeleteTaskButton } from "./delete-task-button";
 import { DeactivateTaskButton } from "./deactivate-task-button";
+import { CommentsSection } from "./comments-section";
+import { SubtasksSection } from "./subtasks-section";
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +60,15 @@ export default async function TaskDetailPage({
   const editable = await canManageProject(me.userId, me.role, task.project_id);
   const isSuper = await isSuperAdmin(me.userId);
   const canTransfer = editable;
-  const [creator, history, transfers, attachments] = await Promise.all([
-    findUserById(task.created_by),
-    listStatusHistory(task.id),
-    listTransferHistory(task.id),
-    listAttachmentsForTask(task.id),
-  ]);
+  const [creator, history, transfers, attachments, comments, subtasks] =
+    await Promise.all([
+      findUserById(task.created_by),
+      listStatusHistory(task.id),
+      listTransferHistory(task.id),
+      listAttachmentsForTask(task.id),
+      listComments(task.id),
+      listSubtasks(task.id),
+    ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -117,6 +125,11 @@ export default async function TaskDetailPage({
           {isOverdue(task.due_date, task.status) ? (
             <Badge variant="destructive">Overdue</Badge>
           ) : null}
+          {task.recur_rule ? (
+            <Badge variant="secondary" className="gap-1">
+              <Repeat className="h-3 w-3" /> Repeats {RECUR_LABEL[task.recur_rule].toLowerCase()}
+            </Badge>
+          ) : null}
           {!task.is_active ? <Badge variant="muted">Archived</Badge> : null}
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{task.title}</h1>
@@ -167,6 +180,15 @@ export default async function TaskDetailPage({
         }))}
       />
 
+      <SubtasksSection
+        taskId={task.id}
+        initial={subtasks.map((s) => ({
+          id: s.id,
+          title: s.title,
+          is_done: s.is_done,
+        }))}
+      />
+
       <AttachmentsSection
         taskId={task.id}
         initial={attachments.map((a) =>
@@ -177,6 +199,19 @@ export default async function TaskDetailPage({
         meId={me.userId}
         isCreator={task.created_by === me.userId}
         isAdmin={me.role === "admin"}
+      />
+
+      <CommentsSection
+        taskId={task.id}
+        meId={me.userId}
+        canModerate={isSuper}
+        initial={comments.map((c) => ({
+          id: c.id,
+          author_id: c.author_id,
+          author_name: c.author_full_name ?? "Unknown",
+          body: c.body,
+          created_at: new Date(c.created_at).toISOString(),
+        }))}
       />
 
       <ActivityTimeline rows={history} />

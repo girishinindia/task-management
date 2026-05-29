@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AssigneePicker } from "@/components/users/assignee-picker";
+import { RECUR_LABEL, RECUR_RULES } from "@/lib/recurrence";
 import { PRIORITY_LABEL, STATUS_LABEL } from "./task-meta";
 
 export type TaskFormValues = TaskCreateInput;
@@ -48,6 +49,7 @@ const emptyValues: TaskFormValues = {
   priority: "medium",
   start_date: "",
   due_date: "",
+  recur_rule: null,
   assignee_ids: [],
 };
 
@@ -67,6 +69,7 @@ export function TaskForm({
       start_date: initial?.start_date ?? "",
       due_date: initial?.due_date ?? "",
       description: initial?.description ?? "",
+      recur_rule: initial?.recur_rule ?? null,
     },
   });
 
@@ -251,6 +254,35 @@ export function TaskForm({
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="space-y-1.5 md:max-w-[260px]">
+        <Label>Repeat</Label>
+        <Select
+          value={form.watch("recur_rule") ?? "none"}
+          onValueChange={(v) =>
+            form.setValue(
+              "recur_rule",
+              v === "none" ? null : (v as "daily" | "weekly" | "monthly"),
+              { shouldDirty: true }
+            )
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Does not repeat</SelectItem>
+            {RECUR_RULES.map((r) => (
+              <SelectItem key={r} value={r}>
+                {RECUR_LABEL[r]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          A repeating task spawns its next occurrence when marked Done.
+        </p>
       </div>
 
       {mode === "create" ? (

@@ -4,6 +4,7 @@ import {
   canReadTask,
   changeTaskStatus,
   getTask,
+  regenerateRecurring,
 } from "@/lib/dao/tasks";
 import { canManageProject } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
@@ -95,5 +96,28 @@ export async function POST(
     ip: clientIp(req),
   });
 
-  return apiOk({ task: result.task, history: result.history });
+  // Recurring tasks regenerate the next occurrence on completion.
+  let regenerated: { id: string } | null = null;
+  if (parsed.data.to_status === "done" && task.recur_rule) {
+    try {
+      const next = await regenerateRecurring(task);
+      if (next) {
+        regenerated = { id: next.id };
+        await recordAudit({
+          action: "task.recurrence_regenerated",
+          entityType: "task",
+          entityId: next.id,
+          actorId: me.userId,
+          actorEmail: me.email,
+          summary: `Created next ${task.recur_rule} occurrence of "${task.title}"`,
+          metadata: { from_task: task.id, rule: task.recur_rule },
+          ip: clientIp(req),
+        });
+      }
+    } catch {
+      /* non-fatal: the completion itself succeeded */
+    }
+  }
+
+  return apiOk({ task: result.task, history: result.history, regenerated });
 }

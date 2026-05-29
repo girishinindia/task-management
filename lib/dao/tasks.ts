@@ -6,7 +6,8 @@
  * (mutation helpers take an actor + role and decide).
  */
 import { sql, tx } from "@/lib/db";
-import { insertAssignments } from "@/lib/dao/assignments";
+import { insertAssignments, listAssigneesForTask } from "@/lib/dao/assignments";
+import { nextOccurrenceDates, type RecurRule } from "@/lib/recurrence";
 import type {
   TaskCreateInput,
   TaskPriority,
@@ -25,6 +26,8 @@ export interface TaskRow {
   due_date: string | null; // YYYY-MM-DD
   project_id: string;
   is_active: boolean;
+  /** daily | weekly | monthly, or null for a one-off task. */
+  recur_rule: RecurRule | null;
   /** Joined in list/detail reads; absent on insert/update RETURNING. */
   project_name?: string | null;
   created_by: string;
@@ -36,7 +39,7 @@ const SELECT_COLS = sql`
   id, title, description, status, priority,
   to_char(start_date, 'YYYY-MM-DD') as start_date,
   to_char(due_date,   'YYYY-MM-DD') as due_date,
-  project_id, is_active, created_by, created_at, updated_at
+  project_id, is_active, recur_rule, created_by, created_at, updated_at
 `;
 
 // ── Reads ───────────────────────────────────────────────────────────────────
@@ -63,9 +66,22 @@ export interface ListTasksOptions {
   /** When true, returns ONLY tasks where due_date < current_date AND
    *  status NOT IN ('done','cancelled'). Combines with other filters. */
   overdue?: boolean;
+  /** Archive filter. "active" (default) hides archived tasks; "archived"
+   *  shows only archived; "all" shows both. */
+  archived?: "active" | "archived" | "all";
+  /** Result ordering. Defaults to "due_asc" (nulls last). */
+  sort?: TaskSort;
   limit?: number;
   offset?: number;
 }
+
+export type TaskSort =
+  | "due_asc"
+  | "due_desc"
+  | "created_desc"
+  | "created_asc"
+  | "priority_desc"
+  | "title_asc";
 
 /** Tasks visible to a user.
  *
@@ -90,12 +106,13 @@ export async function listTasksForUser(
   const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
   const offset = Math.max(opts.offset ?? 0, 0);
 
-  const isAdmin = role === "admin";
   const scopeAll = scope === "all";
   const scopeCreated = scope === "created";
   const scopeAssigned = scope === "assigned";
   const projectId = opts.project_id ?? null;
   const assigneeId = opts.assignee_id ?? null;
+  const archived = opts.archived ?? "active";
+  const sort: TaskSort = opts.sort ?? "due_asc";
 
   // Date filters: no_date overrides from/to. Overdue is a separate boolean
   // and combines with the rest.
@@ -104,13 +121,27 @@ export async function listTasksForUser(
   const to = !noDate && opts.to ? opts.to : null;
   const overdue = opts.overdue === true;
 
+  const orderBy =
+    sort === "due_desc"
+      ? sql`case when t.due_date is null then 1 else 0 end, t.due_date desc, t.created_at desc`
+      : sort === "created_desc"
+        ? sql`t.created_at desc`
+        : sort === "created_asc"
+          ? sql`t.created_at asc`
+          : sort === "priority_desc"
+            ? sql`case t.priority when 'high' then 0 when 'medium' then 1 else 2 end, t.due_date asc nulls last, t.created_at desc`
+            : sort === "title_asc"
+              ? sql`lower(t.title) asc`
+              : sql`case when t.due_date is null then 1 else 0 end, t.due_date asc, t.created_at desc`;
+
   return sql<TaskRow[]>`
     select ${SELECT_COLS},
            (select pr.name from task.projects pr where pr.id = t.project_id) as project_name
       from task.tasks t
      where
-       -- Visibility: workspace admin, or a member of the task's project.
-       (${isAdmin}::bool
+       -- Visibility: super admin (sees all), or a member of the task's project.
+       (coalesce((select su.is_super_admin from task.users su
+                   where su.id = ${userId}::uuid), false)
          or exists (select 1 from task.project_members pm
                      where pm.project_id = t.project_id
                        and pm.user_id = ${userId}::uuid))
@@ -140,11 +171,10 @@ export async function listTasksForUser(
        and (${overdue}::bool = false
             or (t.due_date < current_date
                 and t.status not in ('done','cancelled')))
-       and t.is_active = true
-     order by
-       case when t.due_date is null then 1 else 0 end,
-       t.due_date asc,
-       t.created_at desc
+       and (${archived}::text = 'all'
+            or (${archived}::text = 'active' and t.is_active = true)
+            or (${archived}::text = 'archived' and t.is_active = false))
+     order by ${orderBy}
      limit ${limit} offset ${offset}
   `;
 }
@@ -168,7 +198,6 @@ export async function dayCounts(
   from: string,
   to: string
 ): Promise<Record<string, number>> {
-  const isAdmin = role === "admin";
   const rows = await sql<{ day: string; n: number }[]>`
     select to_char(d::date, 'YYYY-MM-DD') as day, count(*)::int as n
       from task.tasks t
@@ -179,7 +208,8 @@ export async function dayCounts(
       ) as d
      where t.is_active = true
        and (t.start_date is not null or t.due_date is not null)
-       and (${isAdmin}::bool
+       and (coalesce((select su.is_super_admin from task.users su
+                       where su.id = ${userId}::uuid), false)
             or exists (select 1 from task.project_members pm
                         where pm.project_id = t.project_id
                           and pm.user_id = ${userId}::uuid))
@@ -196,14 +226,14 @@ export async function countNoDateTasks(
   userId: string,
   role: UserRole
 ): Promise<number> {
-  const isAdmin = role === "admin";
   const rows = await sql<{ n: string }[]>`
     select count(*)::text as n
       from task.tasks t
      where t.is_active = true
        and t.start_date is null
        and t.due_date is null
-       and (${isAdmin}::bool
+       and (coalesce((select su.is_super_admin from task.users su
+                       where su.id = ${userId}::uuid), false)
             or exists (select 1 from task.project_members pm
                         where pm.project_id = t.project_id
                           and pm.user_id = ${userId}::uuid))
@@ -231,7 +261,6 @@ export async function countTasksForUser(
   overdue: number;
   done_recently: number;
 }> {
-  const isAdmin = role === "admin";
   const rows = await sql<
     {
       open: string;
@@ -250,7 +279,8 @@ export async function countTasksForUser(
                          and t.updated_at >= current_date - interval '7 days')::text      as done_recently
     from task.tasks t
     where t.is_active = true
-      and (${isAdmin}::bool
+      and (coalesce((select su.is_super_admin from task.users su
+                      where su.id = ${userId}::uuid), false)
        or exists (
          select 1 from task.project_members pm
           where pm.project_id = t.project_id and pm.user_id = ${userId}::uuid
@@ -266,20 +296,22 @@ export async function countTasksForUser(
 }
 
 /** Can a user READ this task?
- *   - admin always
- *   - creator always
- *   - assignee always
+ *   - super admin always
+ *   - any member of the task's project
  */
 export async function canReadTask(
   taskId: string,
   actorId: string,
-  role: UserRole
+  _role: UserRole
 ): Promise<boolean> {
-  if (role === "admin") return true;
   const rows = await sql<{ ok: boolean }[]>`
-    select exists (select 1 from task.project_members pm
-                    where pm.project_id = t.project_id
-                      and pm.user_id = ${actorId}::uuid) as ok
+    select (
+      coalesce((select su.is_super_admin from task.users su
+                 where su.id = ${actorId}::uuid), false)
+      or exists (select 1 from task.project_members pm
+                  where pm.project_id = t.project_id
+                    and pm.user_id = ${actorId}::uuid)
+    ) as ok
       from task.tasks t
      where t.id = ${taskId}::uuid
      limit 1
@@ -299,7 +331,7 @@ export async function createTask(
     const rows = await sql<TaskRow[]>`
       insert into task.tasks (
         title, description, status, priority, start_date, due_date,
-        project_id, created_by
+        project_id, recur_rule, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -308,6 +340,7 @@ export async function createTask(
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
         ${input.project_id}::uuid,
+        ${input.recur_rule ?? null}::text,
         ${createdBy}::uuid
       )
       returning ${SELECT_COLS}
@@ -320,7 +353,7 @@ export async function createTask(
     const inserted = await t<TaskRow[]>`
       insert into task.tasks (
         title, description, status, priority, start_date, due_date,
-        project_id, created_by
+        project_id, recur_rule, created_by
       ) values (
         ${input.title},
         ${input.description ?? null},
@@ -329,6 +362,7 @@ export async function createTask(
         ${input.start_date ?? null}::date,
         ${input.due_date ?? null}::date,
         ${input.project_id}::uuid,
+        ${input.recur_rule ?? null}::text,
         ${createdBy}::uuid
       )
       returning ${SELECT_COLS}
@@ -373,11 +407,41 @@ export async function updateTask(
            due_date    = case
                            when ${input.due_date === undefined}::bool then due_date
                            else ${input.due_date ?? null}::date
+                         end,
+           recur_rule  = case
+                           when ${input.recur_rule === undefined}::bool then recur_rule
+                           else ${input.recur_rule ?? null}::text
                          end
      where id = ${id}::uuid
     returning ${SELECT_COLS}
   `;
   return rows[0] ?? null;
+}
+
+/** When a recurring task is completed, create its next occurrence: a fresh
+ *  pending task with dates shifted by the rule and the same assignees. Returns
+ *  the new task, or null if the task isn't recurring. */
+export async function regenerateRecurring(
+  task: TaskRow
+): Promise<TaskRow | null> {
+  if (!task.recur_rule) return null;
+  const { start, due } = nextOccurrenceDates(
+    task.start_date,
+    task.due_date,
+    task.recur_rule
+  );
+  const assignees = await listAssigneesForTask(task.id);
+  return createTask(task.created_by, {
+    project_id: task.project_id,
+    title: task.title,
+    description: task.description ?? undefined,
+    priority: task.priority,
+    status: "pending",
+    start_date: start ?? undefined,
+    due_date: due ?? undefined,
+    recur_rule: task.recur_rule,
+    assignee_ids: assignees.map((a) => a.user_id),
+  });
 }
 
 export async function deleteTask(id: string): Promise<boolean> {

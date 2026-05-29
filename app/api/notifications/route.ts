@@ -1,5 +1,9 @@
 import { requireUser } from "@/lib/auth";
-import { countUnread, listNotifications } from "@/lib/dao/notifications";
+import {
+  countUnread,
+  ensureDueReminders,
+  listNotifications,
+} from "@/lib/dao/notifications";
 import { apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -12,6 +16,13 @@ export async function GET(req: Request) {
   const limitRaw = Number(url.searchParams.get("limit") ?? "20");
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, limitRaw)) : 20;
   const scope = url.searchParams.get("scope") === "unread" ? "unread" : "all";
+
+  // Surface due/overdue reminders (idempotent — once per task per day).
+  try {
+    await ensureDueReminders(me.userId);
+  } catch {
+    /* non-fatal — never block the bell on reminder generation */
+  }
 
   const [rows, unread] = await Promise.all([
     listNotifications(me.userId, { scope, limit }),

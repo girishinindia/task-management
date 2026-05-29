@@ -174,6 +174,25 @@ export async function createProject(input: {
   return project;
 }
 
+/** Rename a project / edit its description. */
+export async function updateProject(
+  id: string,
+  fields: { name?: string; description?: string | null }
+): Promise<ProjectRow | null> {
+  const rows = await sql<ProjectRow[]>`
+    update task.projects
+       set name        = coalesce(${fields.name ?? null}::text, name),
+           description = case
+                           when ${fields.description === undefined}::bool then description
+                           else ${fields.description ?? null}::text
+                         end,
+           updated_at  = now()
+     where id = ${id}::uuid
+    returning id, name, description, created_by, created_at, updated_at
+  `;
+  return rows[0] ?? null;
+}
+
 export async function addMember(opts: {
   project_id: string;
   user_id: string;

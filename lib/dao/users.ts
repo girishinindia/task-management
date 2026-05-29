@@ -174,6 +174,29 @@ export async function updateUser(
   return rows[0] ?? null;
 }
 
+/** Set a new password (e.g. an admin-issued temporary password). */
+export async function setUserPassword(
+  id: string,
+  newPassword: string
+): Promise<boolean> {
+  const hash = await hashPassword(newPassword);
+  const rows = await sql<{ id: string }[]>`
+    update task.users set password_hash = ${hash} where id = ${id} returning id
+  `;
+  return rows.length > 0;
+}
+
+/** Active admin-tier user ids (workspace admins + super admins) — recipients
+ *  for admin-facing notifications like password reset requests. */
+export async function listAdminRecipientIds(): Promise<string[]> {
+  const rows = await sql<{ id: string }[]>`
+    select id from task.users
+     where is_active = true
+       and (role = 'admin' or is_super_admin = true)
+  `;
+  return rows.map((r) => r.id);
+}
+
 export type AuthResult =
   | { ok: true; user: UserRow }
   | { ok: false; reason: "not_found" | "wrong_password" | "inactive" };

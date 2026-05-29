@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Bell,
   CalendarDays,
   FolderKanban,
@@ -53,6 +54,12 @@ const ITEMS: NavItem[] = [
     label: "Projects",
     icon: <FolderKanban className="h-4 w-4" />,
     match: (p) => p.startsWith("/dashboard/projects"),
+  },
+  {
+    href: "/dashboard/analytics",
+    label: "Analytics",
+    icon: <BarChart3 className="h-4 w-4" />,
+    match: (p) => p.startsWith("/dashboard/analytics"),
   },
   {
     href: "/dashboard/notifications",

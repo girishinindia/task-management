@@ -15,10 +15,25 @@ export const createProjectSchema = z.object({
     .optional(),
 });
 
+export const updateProjectSchema = z
+  .object({
+    name: z.string().trim().min(2, "Name must be at least 2 characters").max(120).optional(),
+    description: z
+      .preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+        z.string().max(2000).nullable().optional()
+      )
+      .optional(),
+  })
+  .refine((v) => v.name !== undefined || v.description !== undefined, {
+    message: "Nothing to update",
+  });
+
 export const addMemberSchema = z.object({
   user_id: z.string().uuid(),
   role: z.enum(["admin", "member"]).default("member"),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type AddMemberInput = z.infer<typeof addMemberSchema>;

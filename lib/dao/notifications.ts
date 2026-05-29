@@ -71,6 +71,60 @@ export async function notifyUsers(
   `;
 }
 
+/**
+ * Generate due-soon / overdue reminders for a user, idempotently. Called on
+ * demand (when the user fetches notifications) so no cron job is required:
+ * at most one reminder per task per type per calendar day. A reminder targets
+ * tasks the user created or is assigned to that are still open.
+ */
+export async function ensureDueReminders(userId: string): Promise<void> {
+  // Overdue (due_date strictly before today).
+  await sql`
+    insert into task.notifications (user_id, type, title, body, link)
+    select ${userId}::uuid, 'task_overdue',
+           'Overdue: ' || t.title,
+           'Was due ' || to_char(t.due_date, 'Mon DD') || '.',
+           '/dashboard/tasks/' || t.id::text
+      from task.tasks t
+     where t.is_active = true
+       and t.due_date is not null
+       and t.due_date < current_date
+       and t.status not in ('done','cancelled')
+       and (t.created_by = ${userId}::uuid
+            or exists (select 1 from task.task_assignments a
+                        where a.task_id = t.id and a.user_id = ${userId}::uuid))
+       and not exists (
+         select 1 from task.notifications n
+          where n.user_id = ${userId}::uuid
+            and n.type = 'task_overdue'
+            and n.link = '/dashboard/tasks/' || t.id::text
+            and n.created_at >= current_date
+       )
+  `;
+  // Due today.
+  await sql`
+    insert into task.notifications (user_id, type, title, body, link)
+    select ${userId}::uuid, 'task_due_soon',
+           'Due today: ' || t.title,
+           null,
+           '/dashboard/tasks/' || t.id::text
+      from task.tasks t
+     where t.is_active = true
+       and t.due_date = current_date
+       and t.status not in ('done','cancelled')
+       and (t.created_by = ${userId}::uuid
+            or exists (select 1 from task.task_assignments a
+                        where a.task_id = t.id and a.user_id = ${userId}::uuid))
+       and not exists (
+         select 1 from task.notifications n
+          where n.user_id = ${userId}::uuid
+            and n.type = 'task_due_soon'
+            and n.link = '/dashboard/tasks/' || t.id::text
+            and n.created_at >= current_date
+       )
+  `;
+}
+
 export async function countUnread(userId: string): Promise<number> {
   const rows = await sql<{ n: string }[]>`
     select count(*)::text as n

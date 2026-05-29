@@ -1,4 +1,5 @@
 import { listUsers } from "@/lib/dao/users";
+import { listOpenResetUserIds } from "@/lib/dao/password-reset";
 import { PageHeader } from "@/components/page-header";
 import { UsersTable } from "./users-table";
 import { UsersFilters } from "./users-filters";
@@ -18,11 +19,14 @@ export default async function AdminUsersPage({
 }: {
   searchParams: SP;
 }) {
-  const { rows, total } = await listUsers({
-    search: searchParams.q,
-    role: searchParams.role ?? "all",
-    status: searchParams.status ?? "all",
-  });
+  const [{ rows, total }, resetRequestedIds] = await Promise.all([
+    listUsers({
+      search: searchParams.q,
+      role: searchParams.role ?? "all",
+      status: searchParams.status ?? "all",
+    }),
+    listOpenResetUserIds(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -44,7 +48,7 @@ export default async function AdminUsersPage({
         defaultStatus={searchParams.status ?? "all"}
       />
 
-      <UsersTable rows={rows} />
+      <UsersTable rows={rows} resetRequestedIds={resetRequestedIds} />
     </div>
   );
 }

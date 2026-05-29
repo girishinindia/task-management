@@ -19,9 +19,16 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 - Attachments (file uploads + URL links)
 - Notifications (bell, list, live updates)
 - Date-based views (Today, Calendar with per-day task hints, date filters)
-- Task views: list table **and** Kanban board (toggle on All tasks)
-- Projects with per-project teams and admins; Project / Assignee / Important filters
-- Roles and permissions (admin vs user)
+- Task views: list table **and** Kanban board (toggle on All tasks) **with drag-and-drop**
+- Sort options + locally-saved views; Active / Archived / All filter
+- Bulk actions (multi-select → status / priority / archive)
+- Comments and subtask checklists on a task
+- Due-today / overdue reminders in notifications (warning colors)
+- Recurring tasks (daily / weekly / monthly, regenerated on completion)
+- Projects with per-project teams and admins; edit/rename a project; Project / Assignee / Important filters
+- Analytics & reports (status / priority / per-project)
+- Admin-mediated password reset (Forgot password → admin sets a temp password)
+- Roles and permissions (super admin / admin / user)
 - Audit log (admin-wide report + per-user "My activity")
 
 ### Permission model (three tiers)
@@ -39,10 +46,13 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 | Add attachments / submit status report | ✅ | ✅ | ✅ |
 | Deactivate (archive) a task | ✅ | ✅ their projects | ❌ |
 | Hard-delete a task (permanent) | ✅ | ❌ | ❌ |
-| Deactivate a user (Admin → Users) | ✅ | ✅ | ❌ |
-| See tasks | all | (see note) | their projects |
+| Deactivate a user / set a temp password (Admin → Users) | ✅ | ✅ | ❌ |
+| Comment / edit checklist on a visible task | ✅ | ✅ | ✅ |
+| Bulk status (In progress/Done) | ✅ | ✅ | ✅ (their tasks) |
+| Bulk priority / archive | ✅ | ✅ their projects | ❌ |
+| See tasks | all | their projects | their projects |
 
-> Note: management rules above are fully enforced. In this build a non-super **admin** still *sees* all tasks (visibility-narrowing to only their projects is a planned refinement); super admins see all, members see their projects.
+> Note: visibility is now fully project-scoped. **Super admins** see every task; a non-super **admin** and a **user** both see only tasks in projects they belong to (an admin additionally *manages* those projects). All management rules are enforced in the API, not just hidden in the UI.
 
 ---
 
@@ -51,7 +61,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 Confirm all of these once before testing:
 
 1. **Dev server is running** for *this* project (the `task-management` folder). In the terminal you should see `Local: http://localhost:PORT`. Use that exact port below — it may be `3000`, or `3001` if another app already holds `3000`.
-2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007` → `0008` → `0009`. Without these the `task.*` tables don't exist and every page will error. (`0007` = audit log; `0008` = Projects + default **"General"** project; `0009` = `users.is_super_admin` (promotes the earliest admin to **super admin** — adjust with `update task.users set is_super_admin=true where email='you@example.com';`) + `tasks.is_active` archive flag. Without `0008`/`0009` the tasks pages error on the missing columns.)
+2. **Database migrations applied** in Supabase (SQL editor): `0001` → `0002` → `0003` → `0004` → `0006` → `0007` → `0008` → `0009` → `0010`. Without these the `task.*` tables don't exist and every page will error. (`0007` = audit log; `0008` = Projects + default **"General"** project; `0009` = `users.is_super_admin` (promotes the earliest admin to **super admin** — adjust with `update task.users set is_super_admin=true where email='you@example.com';`) + `tasks.is_active` archive flag; `0010` = task **comments**, **subtasks** (checklist), `tasks.recur_rule` (recurring), and the **password-reset requests** queue. Without `0008`–`0010` the tasks pages error on the missing columns.)
 3. **Redis REST is configured** in `.env.local` (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). Login creates a session in Redis, so sign-in fails without it.
 4. **At least one admin exists.** Create one from the terminal:
    ```
@@ -251,7 +261,41 @@ Three tiers: **super admin** (earliest admin, promoted by `0009`), **admin** (`r
 2. **Admins/super do the rest.** As **Priya** (admin) or a super admin, the dropdown offers every legal transition incl. **Blocked** / **Cancelled**.
 3. **Create project = super only.** As Priya (admin, not super), the **Projects** page shows **Request a project** (not New project). Submit one → ✅ every super admin gets a colored `project_requested` notification. A super admin sees **New project**.
 4. **Deactivate vs hard delete.** On a task detail: an **admin** sees **Deactivate** — the task gets an **Archived** badge and drops out of task lists/board, and **Reactivate** restores it. Only a **super admin** sees **Delete** (permanent). ✅ A non-super admin calling hard-delete directly gets **403**.
-5. **Notifications coverage + color.** ✅ Assign, transfer, status change, **task edit**, and **attachment** all notify the other assignees (not the actor), each with a color-coded icon: sky (assigned), violet (transferred), green (status), amber (edited), cyan (attachment), fuchsia (project request).
+5. **Notifications coverage + color.** ✅ Assign, transfer, status change, **task edit**, and **attachment** all notify the other assignees (not the actor), each with a color-coded icon: sky (assigned), violet (transferred), green (status), amber (edited), cyan (attachment), fuchsia (project request), indigo (comment), amber (due today), red (overdue), orange (password reset).
+
+### Flow 17 — Comments & subtask checklist
+
+On any task detail page (open as anyone who can see the task):
+
+1. **Comments.** Scroll to **Comments**, type a message, **Comment** (or ⌘/Ctrl+Enter). ✅ It appears immediately with your name + "just now". Anyone who can see the task can post.
+2. **Comment notifications.** As **Rahul** comment on a task assigned to **Priya**. ✅ Priya gets an **indigo** `comment_added` notification linking to the task; the author is not notified.
+3. **Delete a comment.** ✅ You can delete **your own** comment (trash icon); a **super admin** can delete any; others see no delete icon.
+4. **Checklist (subtasks).** In the **Checklist** section add items ("Draft copy", "Get sign-off"). ✅ Each appears; ticking one strikes it through and the **progress bar / x-of-y / %** updates. Items persist on refresh. Anyone who can see the task can add/tick/delete items.
+
+### Flow 18 — Recurring tasks + due/overdue reminders
+
+1. **Make a task recurring.** As Admin, edit a task (or create one) → **Repeat** = **Weekly**, set a **Due date** = today. Save. ✅ The detail page shows a **"Repeats weekly"** badge.
+2. **Regenerate on completion.** Move that task to **Done**. ✅ A brand-new **Pending** copy is created with the due date shifted **+7 days**, same title/priority/assignees; the audit log shows `task.recurrence_regenerated`. (Daily = +1 day, Monthly = +1 month with end-of-month clamping.)
+3. **Due-today reminder.** Ensure a task assigned to you is **due today** and open the **bell** (or Notifications page). ✅ An **amber** "Due today: …" reminder appears. **Overdue** (due in the past, still open) ✅ shows a **red** "Overdue: …" reminder. Reminders are generated at most **once per task per day** — reloading doesn't duplicate them. (No cron: they're created when you open notifications.)
+
+### Flow 19 — Bulk actions, drag-and-drop, sort, saved views, archived
+
+1. **Multi-select (List).** On **All tasks** (List view) tick a few row checkboxes (or the header "select all"). ✅ A bulk bar shows "N selected" with **Set status…**, **Set priority…**, and **Archive**. Pick one → ✅ toast "Updated N tasks · M skipped" (tasks you can't manage are skipped); the list refreshes.
+2. **Drag-and-drop (Board).** Switch to **Board**. Drag a card into another status column. ✅ It moves and the status persists (same transition + permission rules — a member dropping into Blocked/Cancelled is refused with a toast and the card snaps back).
+3. **Sort.** Use the **sort** dropdown (Due ↑/↓, Newest/Oldest, Priority, Title A–Z). ✅ The order changes accordingly and persists in the URL.
+4. **Saved views.** Set some filters, then under **Views** click **Save current**, name it. ✅ A chip appears; clicking it re-applies those filters later; the **×** removes it. (Saved per-browser.)
+5. **Archived filter.** Archive a task (Flow 16), then set the **Active / Archived / All** filter to **Archived**. ✅ Archived tasks appear (with an **Archived** badge); **All** shows both; **Active** (default) hides them.
+
+### Flow 20 — Password reset (admin-mediated)
+
+1. **Request a reset.** Sign out. On the login page click **Forgot password?** → enter a user's email (e.g. `priya@example.com`) → **Request reset**. ✅ You get a neutral confirmation (it never reveals whether the email exists).
+2. **Admin is notified.** As an Admin/super admin, open the **bell**. ✅ An **orange** `password_reset_requested` notification links to **Admin → Users**, where Priya's row shows a **"Reset requested"** badge.
+3. **Set a temp password.** Open Priya's **Edit** dialog → **Set temporary password** → enter `NewPriya@123` → **Set**. ✅ Toast confirms; the request badge clears; Priya's sessions are revoked. ✅ Priya can now sign in with the new password (and the old one no longer works).
+4. **Validation.** A password under 8 chars / without a number is rejected.
+
+### Flow 21 — Analytics & reports
+
+1. Sidebar → **Analytics**. ✅ Summary cards (Total, Open, Overdue, Completion rate), a **By status** and **By priority** bar breakdown, and a **By project** progress list — all scoped to the tasks you can see (super admin = all; others = their projects). With no visible tasks you get a friendly empty state.
 
 ---
 
@@ -263,7 +307,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Admin can create users; validation + duplicate-email handled
 - [ ] Users can log in; regular users have no Admin link
 - [ ] Tasks can be created with all fields; new tasks start Pending
-- [ ] Admin sees all tasks; each user sees only created/assigned
+- [ ] Super admin sees all tasks; admins and users see only tasks in their projects
 - [ ] Scope filter (Created/Assigned/All) works
 - [ ] Status changes work and are recorded in the activity timeline
 - [ ] Task edit (priority/dates/description) saves (admin)
@@ -286,6 +330,16 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Only super admins create projects; admins get "Request a project" and super admins are notified
 - [ ] Admins can Deactivate (archive) a task; only super admins can hard-delete (API 403 otherwise); archived tasks leave the lists and can be reactivated
 - [ ] Notifications fire for assign, transfer, status, task edit, and attachment — color-coded by type
+- [ ] Comments: post / see / delete-own (super admin deletes any); assignees+creator get an indigo notification
+- [ ] Checklist (subtasks): add / tick / delete; progress bar + x-of-y update and persist
+- [ ] Recurring task shows a "Repeats …" badge and spawns the next occurrence (dates shifted) when marked Done
+- [ ] Due-today (amber) and overdue (red) reminders appear in notifications, once per task per day
+- [ ] Bulk actions: multi-select → set status / set priority / archive; "skipped" count for non-managed tasks
+- [ ] Board drag-and-drop moves a task's status (member restriction enforced with revert + toast)
+- [ ] Sort dropdown reorders; saved views save/apply/remove (per-browser); Active/Archived/All filter works
+- [ ] Edit/rename a project (project admin or super admin); change shows in audit log
+- [ ] Forgot password → request logged, admins notified, "Reset requested" badge; admin sets temp password (sessions revoked, new password works)
+- [ ] Analytics page shows summary cards + by-status / by-priority / by-project, scoped to visible tasks
 - [ ] Per-date activation blocks assignment on inactive dates
 - [ ] Edit user works; deactivating an account force-logs-out and blocks login
 - [ ] Only admins can create/edit/delete/transfer/assign — buttons hidden AND API returns 403 for regular users
@@ -312,16 +366,26 @@ Tick each as you verify it. Add a note for anything that fails.
 
 ---
 
-## 8. Appendix A — Automated smoke test
+## 8. Appendix A — Automated tests
 
-A Playwright scaffold ships with the project:
+**Unit tests** cover the pure logic (recurrence date-math, date validation, status-transition rules, reporting math):
+
+```
+npm test                # node --test via tsx, runs tests/unit/*.test.ts
+```
+
+✅ All cases pass. These are fast, need no database, and are the first thing to run after changing `lib/recurrence.ts`, `lib/date.ts`, `lib/schemas/status.ts`, or `lib/analytics-util.ts`.
+
+**End-to-end** Playwright scaffold:
 
 ```
 npm run test:e2e        # headless
 npm run test:e2e:ui     # interactive runner
 ```
 
-It currently covers a basic smoke path (`tests/e2e/smoke.spec.ts`). Treat it as a foundation — the manual flows above are the source of truth for full coverage until the suite is expanded.
+The e2e suite currently covers a basic smoke path (`tests/e2e/smoke.spec.ts`). Treat it as a foundation — the manual flows above remain the source of truth for full coverage until the suite is expanded.
+
+Also useful: `npm run type-check` (tsc, should report **0 errors**).
 
 ---
 
@@ -330,7 +394,8 @@ It currently covers a basic smoke path (`tests/e2e/smoke.spec.ts`). Treat it as 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | "Invalid environment variables" on `make-admin` | Script reads `.env`, not `.env.local` | Prefix with `DOTENV_CONFIG_PATH=.env.local`, or `cp .env.local .env` |
-| `relation "task.users" does not exist` | Migrations not applied | Run `0001`–`0004` then `0006` in Supabase SQL editor |
+| `relation "task.users" does not exist` | Migrations not applied | Run `0001`–`0004`, then `0006`–`0010` in the Supabase SQL editor |
+| `column … recur_rule / is_active does not exist`, or comments/checklist error | Missing later migration | Apply `0009` and `0010` |
 | Login fails / hangs | Redis REST not set | Fill `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`, restart |
 | "esbuild" Not Opened (macOS) | Gatekeeper quarantine | `xattr -r -d com.apple.quarantine node_modules`, then retry (don't click "Move to Bin") |
 | App opens a different site on :3000 | Another dev server holds the port | Use the port printed in this project's terminal (often :3001) |

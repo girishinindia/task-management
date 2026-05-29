@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { LayoutGrid, List, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { listTasksForUser, type TaskScope } from "@/lib/dao/tasks";
+import {
+  listTasksForUser,
+  type TaskScope,
+  type TaskSort,
+} from "@/lib/dao/tasks";
 import { listAssigneesForTasks } from "@/lib/dao/assignments";
 import {
+  isSuperAdmin,
   listManageableProjects,
   listProjectsForUser,
 } from "@/lib/dao/projects";
@@ -36,6 +41,10 @@ type SP = {
   /** Filter to a single project / a single assignee. */
   project_id?: string;
   assignee_id?: string;
+  /** Archive filter: active (default) | archived | all. */
+  archived?: "active" | "archived" | "all";
+  /** Result ordering. */
+  sort?: TaskSort;
   /** Which view template to render. */
   view?: "list" | "board";
 };
@@ -52,6 +61,8 @@ function withView(sp: SP, view: "list" | "board"): string {
   if (sp.date_filter) p.set("date_filter", sp.date_filter);
   if (sp.project_id) p.set("project_id", sp.project_id);
   if (sp.assignee_id) p.set("assignee_id", sp.assignee_id);
+  if (sp.archived) p.set("archived", sp.archived);
+  if (sp.sort) p.set("sort", sp.sort);
   if (view === "board") p.set("view", "board");
   const s = p.toString();
   return s ? `/dashboard/tasks?${s}` : "/dashboard/tasks";
@@ -76,6 +87,20 @@ function safeIso(v?: string): string | null {
 }
 function safeUuid(v?: string): string | null {
   return v && /^[0-9a-fA-F-]{36}$/.test(v) ? v : null;
+}
+function safeArchived(v?: string): "active" | "archived" | "all" {
+  return v === "archived" || v === "all" ? v : "active";
+}
+function safeSort(v?: string): TaskSort {
+  const allowed: TaskSort[] = [
+    "due_asc",
+    "due_desc",
+    "created_desc",
+    "created_asc",
+    "priority_desc",
+    "title_asc",
+  ];
+  return allowed.includes(v as TaskSort) ? (v as TaskSort) : "due_asc";
 }
 function safeChip(v?: string): DateChip | "none" {
   if (
@@ -152,8 +177,10 @@ export default async function TasksPage({
   const resolved = resolveDateFilter(chip, explicitFrom, explicitTo);
   const projectId = safeUuid(searchParams.project_id);
   const assigneeId = safeUuid(searchParams.assignee_id);
+  const archived = safeArchived(searchParams.archived);
+  const sort = safeSort(searchParams.sort);
 
-  const [rows, projects, users, manageable] = await Promise.all([
+  const [rows, projects, users, manageable, isSuper] = await Promise.all([
     listTasksForUser(me.userId, me.role, {
       search: searchParams.q,
       status,
@@ -165,10 +192,13 @@ export default async function TasksPage({
       to: resolved.to,
       no_date: resolved.no_date,
       overdue: resolved.overdue,
+      archived,
+      sort,
     }),
     listProjectsForUser(me.userId, me.role),
     listActiveAssignableUsers(),
     listManageableProjects(me.userId, me.role),
+    isSuperAdmin(me.userId),
   ]);
   const assigneesByTask = await listAssigneesForTasks(rows.map((r) => r.id));
   const view = searchParams.view === "board" ? "board" : "list";
@@ -181,9 +211,9 @@ export default async function TasksPage({
         className="mb-0"
         title="Tasks"
         description={
-          me.role === "admin"
+          isSuper
             ? "Every task in the workspace."
-            : "Tasks you created or are assigned to."
+            : "Tasks in your projects."
         }
       >
         <div className="inline-flex rounded-lg border bg-card p-0.5">
@@ -227,9 +257,11 @@ export default async function TasksPage({
         defaultChip={chip}
         defaultProject={projectId ?? ""}
         defaultAssignee={assigneeId ?? ""}
+        defaultArchived={archived}
+        defaultSort={sort}
         projects={projects.map((p) => ({ id: p.id, name: p.name }))}
         users={users.map((u) => ({ id: u.id, full_name: u.full_name }))}
-        showScope={me.role !== "admin"}
+        showScope={!isSuper}
       />
 
       {view === "board" ? (

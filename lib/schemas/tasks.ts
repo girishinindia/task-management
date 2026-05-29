@@ -49,6 +49,7 @@ export const taskCreateSchema = z
     status: z.enum(TASK_STATUSES).default("pending"),
     start_date: optionalDate,
     due_date: optionalDate,
+    recur_rule: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
     assignee_ids: z.array(z.string().uuid()).max(50).optional().default([]),
   })
   .refine(
@@ -67,6 +68,7 @@ export const taskUpdateSchema = z
     status: z.enum(TASK_STATUSES).optional(),
     start_date: optionalDate,
     due_date: optionalDate,
+    recur_rule: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: "Nothing to update",
@@ -79,7 +81,25 @@ export const taskUpdateSchema = z
     }
   );
 
+export const bulkTaskActionSchema = z
+  .object({
+    ids: z.array(z.string().uuid()).min(1, "Select at least one task").max(200),
+    action: z.enum(["status", "priority", "archive", "restore"]),
+    value: z.string().optional(),
+  })
+  .refine(
+    (v) => {
+      if (v.action === "status")
+        return TASK_STATUSES.includes(v.value as TaskStatus);
+      if (v.action === "priority")
+        return TASK_PRIORITIES.includes(v.value as TaskPriority);
+      return true;
+    },
+    { message: "Invalid value for this action", path: ["value"] }
+  );
+
 export type TaskCreateInput = z.infer<typeof taskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof taskUpdateSchema>;
+export type BulkTaskActionInput = z.infer<typeof bulkTaskActionSchema>;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];

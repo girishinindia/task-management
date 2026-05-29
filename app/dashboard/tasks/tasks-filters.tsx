@@ -17,8 +17,16 @@ import {
 } from "./task-meta";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/schemas/tasks";
 import { cn } from "@/lib/utils";
+import { SavedViews } from "./saved-views";
 
 export type DateChip = "today" | "tomorrow" | "week" | "overdue" | "no_date";
+export type TaskSort =
+  | "due_asc"
+  | "due_desc"
+  | "created_desc"
+  | "created_asc"
+  | "priority_desc"
+  | "title_asc";
 
 const CHIPS: { value: DateChip; label: string }[] = [
   { value: "today", label: "Today" },
@@ -27,6 +35,15 @@ const CHIPS: { value: DateChip; label: string }[] = [
   { value: "overdue", label: "Overdue" },
   { value: "no_date", label: "No date" },
 ];
+
+const SORT_LABEL: Record<TaskSort, string> = {
+  due_asc: "Due date ↑",
+  due_desc: "Due date ↓",
+  created_desc: "Newest first",
+  created_asc: "Oldest first",
+  priority_desc: "Priority",
+  title_asc: "Title A–Z",
+};
 
 export function TasksFilters({
   defaultQ,
@@ -38,6 +55,8 @@ export function TasksFilters({
   defaultChip,
   defaultProject = "",
   defaultAssignee = "",
+  defaultArchived = "active",
+  defaultSort = "due_asc",
   projects = [],
   users = [],
   showScope = true,
@@ -51,6 +70,8 @@ export function TasksFilters({
   defaultChip: DateChip | "none";
   defaultProject?: string;
   defaultAssignee?: string;
+  defaultArchived?: "active" | "archived" | "all";
+  defaultSort?: TaskSort;
   projects?: { id: string; name: string }[];
   users?: { id: string; full_name: string }[];
   showScope?: boolean;
@@ -65,6 +86,17 @@ export function TasksFilters({
       if (!v || v === "all" || v === "" || v === "none") next.delete(k);
       else next.set(k, v);
     }
+    startTransition(() => {
+      router.replace(`/dashboard/tasks?${next.toString()}`);
+    });
+  }
+
+  /** Like update(), but only clears the key when the value equals its default
+   *  (so meaningful values like archived="all" are preserved in the URL). */
+  function updateParam(key: string, value: string, clearWhen: string) {
+    const next = new URLSearchParams(params.toString());
+    if (!value || value === clearWhen) next.delete(key);
+    else next.set(key, value);
     startTransition(() => {
       router.replace(`/dashboard/tasks?${next.toString()}`);
     });
@@ -151,7 +183,7 @@ export function TasksFilters({
         >
           ★ Important
         </button>
-        {projects.length > 1 ? (
+        {projects.length > 0 ? (
           <Select
             defaultValue={defaultProject || "all"}
             onValueChange={(v) => update({ project_id: v })}
@@ -183,6 +215,34 @@ export function TasksFilters({
                 {u.full_name}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select
+          defaultValue={defaultSort}
+          onValueChange={(v) => updateParam("sort", v, "due_asc")}
+        >
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SORT_LABEL) as TaskSort[]).map((s) => (
+              <SelectItem key={s} value={s}>
+                {SORT_LABEL[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          defaultValue={defaultArchived}
+          onValueChange={(v) => updateParam("archived", v, "active")}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="all">Active + archived</SelectItem>
           </SelectContent>
         </Select>
         {pending ? (
@@ -263,6 +323,8 @@ export function TasksFilters({
           </Button>
         )}
       </div>
+
+      <SavedViews />
     </div>
   );
 }

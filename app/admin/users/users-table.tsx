@@ -36,12 +36,19 @@ import type { PublicUser } from "@/lib/dao/users";
 import { EditUserDialog } from "./edit-user-dialog";
 import { DateActivationDialog } from "./date-activation-dialog";
 
-export function UsersTable({ rows }: { rows: PublicUser[] }) {
+export function UsersTable({
+  rows,
+  resetRequestedIds = [],
+}: {
+  rows: PublicUser[];
+  resetRequestedIds?: string[];
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<PublicUser | null>(null);
   const [datesFor, setDatesFor] = useState<PublicUser | null>(null);
   const [confirming, setConfirming] = useState<PublicUser | null>(null);
   const [working, setWorking] = useState(false);
+  const resetSet = new Set(resetRequestedIds);
 
   if (rows.length === 0) {
     return (
@@ -90,7 +97,19 @@ export function UsersTable({ rows }: { rows: PublicUser[] }) {
           <TableBody>
             {rows.map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.full_name}</TableCell>
+                <TableCell className="font-medium">
+                  <span className="inline-flex items-center gap-2">
+                    {u.full_name}
+                    {resetSet.has(u.id) ? (
+                      <Badge
+                        variant="outline"
+                        className="border-orange-300 bg-orange-50 text-orange-700"
+                      >
+                        Reset requested
+                      </Badge>
+                    ) : null}
+                  </span>
+                </TableCell>
                 <TableCell className="text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
                   <Badge variant={u.role === "admin" ? "default" : "secondary"}>
@@ -151,6 +170,7 @@ export function UsersTable({ rows }: { rows: PublicUser[] }) {
       {editing ? (
         <EditUserDialog
           user={editing}
+          resetRequested={resetSet.has(editing.id)}
           onOpenChange={(o) => !o && setEditing(null)}
         />
       ) : null}
