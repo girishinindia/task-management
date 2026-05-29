@@ -1,10 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { transferSchema } from "@/lib/schemas/transfer";
-import {
-  canReadTask,
-  getTask,
-  transferTask,
-} from "@/lib/dao/tasks";
+import { getTask, transferTask } from "@/lib/dao/tasks";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
 import { apiError, apiOk } from "@/lib/api-response";
 
@@ -41,24 +37,9 @@ export async function POST(
   const task = await getTask(params.id);
   if (!task) return apiError("not_found", "Task not found", 404);
 
-  // Permission: creator, any current assignee, or admin (matches the dialog
-  // visibility on the detail page).
-  if (me.role !== "admin" && task.created_by !== me.userId) {
-    const assignees = await listAssigneesForTask(params.id);
-    const isAssignee = assignees.some((a) => a.user_id === me.userId);
-    if (!isAssignee) {
-      return apiError(
-        "forbidden",
-        "Only the creator, an assignee, or an admin can transfer this task.",
-        403
-      );
-    }
-  }
-
-  // Re-check via canReadTask is redundant with the block above (creator OR
-  // assignee OR admin) but kept for defensive symmetry.
-  if (!(await canReadTask(params.id, me.userId, me.role))) {
-    return apiError("forbidden", "You can't transfer this task", 403);
+  // Workspace rule: only admins can transfer (reassign) tasks.
+  if (me.role !== "admin") {
+    return apiError("forbidden", "Only an admin can transfer tasks.", 403);
   }
 
   const result = await transferTask({

@@ -15,7 +15,7 @@ export async function DELETE(
   if (!canMutate(task, me.userId, me.role)) {
     return apiError(
       "forbidden",
-      "Only the task creator or an admin can change assignees.",
+      "Only an admin can change assignees.",
       403
     );
   }

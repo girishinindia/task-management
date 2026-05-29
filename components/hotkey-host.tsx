@@ -20,14 +20,15 @@ import { useHotkey } from "@/lib/hotkeys";
  *
  * Shortcuts auto-disable while the user is typing in an input/textarea/
  * contenteditable element. */
-export function HotkeyHost() {
+export function HotkeyHost({ canCreate = false }: { canCreate?: boolean }) {
   const router = useRouter();
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const goNew = useCallback(
-    () => router.push("/dashboard/tasks/new"),
-    [router]
-  );
+  // Only admins can create tasks, so the "n" shortcut is a no-op for everyone
+  // else (the /dashboard/tasks/new page redirects non-admins anyway).
+  const goNew = useCallback(() => {
+    if (canCreate) router.push("/dashboard/tasks/new");
+  }, [router, canCreate]);
 
   const focusSearch = useCallback((e: KeyboardEvent) => {
     const el = document.querySelector<HTMLInputElement>(
@@ -59,7 +60,9 @@ export function HotkeyHost() {
           </DialogDescription>
         </DialogHeader>
         <ul className="space-y-2 text-sm">
-          <ShortcutRow keys={["n"]} description="Create a new task" />
+          {canCreate ? (
+            <ShortcutRow keys={["n"]} description="Create a new task" />
+          ) : null}
           <ShortcutRow keys={["/"]} description="Focus the tasks search" />
           <ShortcutRow keys={["?"]} description="Show this list" />
         </ul>

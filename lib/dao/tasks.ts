@@ -304,11 +304,14 @@ export async function createTask(
 
 /** Whether the actor can mutate this task. Phase 5: creator or admin. */
 export function canMutate(
-  task: TaskRow,
-  actorId: string,
+  _task: TaskRow,
+  _actorId: string,
   role: UserRole
 ): boolean {
-  return role === "admin" || task.created_by === actorId;
+  // Workspace rule: only admins may create, edit, delete, reassign, or
+  // transfer tasks. Regular users can view their tasks, submit status reports,
+  // and add their own attachments — but never mutate the task itself.
+  return role === "admin";
 }
 
 /** Update task fields. Phase 8: status is INTENTIONALLY not writable here —

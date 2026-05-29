@@ -8,6 +8,9 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const me = await requireUser();
+  if (me.role !== "admin") {
+    return apiError("forbidden", "Only an admin can create tasks.", 403);
+  }
 
   let body: unknown;
   try {

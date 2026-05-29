@@ -143,11 +143,13 @@ export default async function TasksPage({
             : "Tasks you created or are assigned to."
         }
       >
-        <Button asChild>
-          <Link href="/dashboard/tasks/new">
-            <Plus className="h-4 w-4" /> New task
-          </Link>
-        </Button>
+        {me.role === "admin" ? (
+          <Button asChild>
+            <Link href="/dashboard/tasks/new">
+              <Plus className="h-4 w-4" /> New task
+            </Link>
+          </Button>
+        ) : null}
       </PageHeader>
 
       <TasksFilters

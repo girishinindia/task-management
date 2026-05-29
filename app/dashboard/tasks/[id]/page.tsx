@@ -51,12 +51,8 @@ export default async function TaskDetailPage({
 
   const editable = canMutate(task, me.userId, me.role);
   const canChangeStatus = await canReadTask(task.id, me.userId, me.role);
-  // Transfer visibility matches the API permission rule: creator, current
-  // assignee, or admin.
-  const canTransfer =
-    me.role === "admin" ||
-    task.created_by === me.userId ||
-    isAssignee;
+  // Workspace rule: only admins can transfer (reassign) tasks.
+  const canTransfer = me.role === "admin";
   const [creator, history, transfers, attachments] = await Promise.all([
     findUserById(task.created_by),
     listStatusHistory(task.id),

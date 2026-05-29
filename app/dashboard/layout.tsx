@@ -22,7 +22,7 @@ export default async function DashboardLayout({
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
-      <HotkeyHost />
+      <HotkeyHost canCreate={user.role === "admin"} />
     </div>
   );
 }

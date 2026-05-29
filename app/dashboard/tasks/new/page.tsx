@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { requireUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "../task-form";
 
@@ -8,7 +8,8 @@ export const metadata = { title: "New task" };
 export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage() {
-  await requireUser();
+  // Only admins can create tasks; non-admins are redirected to the dashboard.
+  await requireAdmin();
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2">

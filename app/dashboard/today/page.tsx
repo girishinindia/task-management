@@ -75,11 +75,13 @@ export default async function TodayPage() {
             ) : null}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/tasks/new">
-            <Plus className="h-4 w-4" /> New task
-          </Link>
-        </Button>
+        {me.role === "admin" ? (
+          <Button asChild>
+            <Link href="/dashboard/tasks/new">
+              <Plus className="h-4 w-4" /> New task
+            </Link>
+          </Button>
+        ) : null}
       </header>
 
       {grouped.length === 0 ? (

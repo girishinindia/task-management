@@ -37,11 +37,13 @@ export default async function DashboardPage() {
             : `${counts.open} open task${counts.open === 1 ? "" : "s"} on your plate.`
         }
       >
-        <Button asChild>
-          <Link href="/dashboard/tasks/new">
-            <Plus className="h-4 w-4" /> New task
-          </Link>
-        </Button>
+        {u.role === "admin" ? (
+          <Button asChild>
+            <Link href="/dashboard/tasks/new">
+              <Plus className="h-4 w-4" /> New task
+            </Link>
+          </Button>
+        ) : null}
       </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-4">
