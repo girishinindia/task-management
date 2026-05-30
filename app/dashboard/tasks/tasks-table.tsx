@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { AlertCircle, Archive, Loader2, X } from "lucide-react";
+import { AlertCircle, Archive, ArchiveRestore, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -83,7 +83,7 @@ export function TasksTable({
   }
 
   async function applyBulk(
-    action: "status" | "priority" | "archive",
+    action: "status" | "priority" | "archive" | "restore",
     value?: string
   ) {
     if (selected.size === 0) return;
@@ -162,6 +162,15 @@ export function TasksTable({
             onClick={() => applyBulk("archive")}
           >
             <Archive className="h-3.5 w-3.5" /> Archive
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            disabled={working}
+            onClick={() => applyBulk("restore")}
+          >
+            <ArchiveRestore className="h-3.5 w-3.5" /> Restore
           </Button>
           <Button
             size="sm"

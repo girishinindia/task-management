@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -83,6 +83,13 @@ export function TaskForm({
   const [newSub, setNewSub] = useState("");
   const subtasks = form.watch("subtasks") ?? [];
 
+  // Hard guard against double-submits: a fast double-click or Enter+click could
+  // otherwise fire onSubmit twice in the window before navigation, creating
+  // duplicate tasks. `submitting` keeps the button disabled through navigation;
+  // `submittedRef` blocks any re-entry synchronously.
+  const [submitting, setSubmitting] = useState(false);
+  const submittedRef = useRef(false);
+
   function addSubtask() {
     const v = newSub.trim();
     if (!v) return;
@@ -101,6 +108,12 @@ export function TaskForm({
   }
 
   async function onSubmit(data: TaskFormValues) {
+    // Block re-entry synchronously — even before React re-renders the disabled
+    // button — so a rapid double-click can't POST twice.
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitting(true);
+
     const url =
       mode === "create" ? "/api/tasks" : `/api/tasks/${initial?.id}`;
     const method = mode === "create" ? "POST" : "PATCH";
@@ -118,25 +131,38 @@ export function TaskForm({
       due_time: rest.due_time || null,
     };
 
-    const res = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      toast.error(err?.error?.message ?? "Failed to save task");
-      return;
-    }
-    const data2 = await res.json();
-    toast.success(mode === "create" ? "Task created" : "Task updated");
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error?.message ?? "Failed to save task");
+        // Allow another attempt after a failure.
+        submittedRef.current = false;
+        setSubmitting(false);
+        return;
+      }
+      const data2 = await res.json();
+      toast.success(mode === "create" ? "Task created" : "Task updated");
 
-    if (onSuccessHref) {
-      router.push(onSuccessHref);
-    } else if (mode === "create") {
-      router.push(`/dashboard/tasks/${data2.task.id}`);
-    } else {
-      router.refresh();
+      // On success keep the button disabled through navigation (don't reset
+      // the guard) so the form can't be submitted again.
+      if (onSuccessHref) {
+        router.push(onSuccessHref);
+      } else if (mode === "create") {
+        router.push(`/dashboard/tasks/${data2.task.id}`);
+      } else {
+        router.refresh();
+        submittedRef.current = false;
+        setSubmitting(false);
+      }
+    } catch {
+      toast.error("Couldn't save the task. Check your connection and retry.");
+      submittedRef.current = false;
+      setSubmitting(false);
     }
   }
 
@@ -430,8 +456,11 @@ export function TaskForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? (
+        <Button
+          type="submit"
+          disabled={submitting || form.formState.isSubmitting}
+        >
+          {submitting || form.formState.isSubmitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : null}
           {mode === "create" ? "Create task" : "Save changes"}

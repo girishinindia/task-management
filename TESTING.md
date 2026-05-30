@@ -348,6 +348,8 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Transfer "to" dropdown excludes the current user; self-transfer via API returns 400
 - [ ] Checklist (subtasks): add / tick / delete; progress bar + x-of-y update and persist
 - [ ] New task form: optional **Checklist** items added at creation appear (in order) on the new task's detail page
+- [ ] Creating a task is **single-submit**: rapid double-clicks / Enter+click create exactly **one** task (button disabled through navigation)
+- [ ] Bulk bar has **Restore** (unarchive): select archived tasks (Archived/All filter) → Restore brings them back to Active; detail page also has **Reactivate**
 - [ ] Recurring task shows a "Repeats …" badge and spawns the next occurrence (dates shifted) when marked Done
 - [ ] Due-today (amber) and overdue (red) reminders appear in notifications, once per task per day
 - [ ] Bulk actions: multi-select → set status / set priority / archive; "skipped" count for non-managed tasks
