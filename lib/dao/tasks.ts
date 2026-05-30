@@ -88,6 +88,31 @@ export type TaskSort =
   | "priority_desc"
   | "title_asc";
 
+/** SQL predicate over the tasks alias `t` for which tasks a user may SEE:
+ *   - super admin                                  → every task
+ *   - a project admin, or a workspace admin who is
+ *     a member of the task's project               → all tasks in that project
+ *   - otherwise (a plain project member)           → only tasks they created
+ *                                                    or are assigned to
+ *  This is the single source of truth for task visibility; every list/count
+ *  query (and canReadTask + analytics) uses it so they stay consistent. */
+export function visibleTasksPredicate(
+  userId: string,
+  isWorkspaceAdmin: boolean
+) {
+  return sql`(
+    coalesce((select su.is_super_admin from task.users su
+               where su.id = ${userId}::uuid), false)
+    or exists (select 1 from task.project_members pm
+                where pm.project_id = t.project_id
+                  and pm.user_id = ${userId}::uuid
+                  and (pm.role = 'admin' or ${isWorkspaceAdmin}::bool))
+    or t.created_by = ${userId}::uuid
+    or exists (select 1 from task.task_assignments a
+                where a.task_id = t.id and a.user_id = ${userId}::uuid)
+  )`;
+}
+
 /** Tasks visible to a user.
  *
  *   scope "all"      → created OR assigned (default for non-admins)
@@ -144,12 +169,9 @@ export async function listTasksForUser(
            (select pr.name from task.projects pr where pr.id = t.project_id) as project_name
       from task.tasks t
      where
-       -- Visibility: super admin (sees all), or a member of the task's project.
-       (coalesce((select su.is_super_admin from task.users su
-                   where su.id = ${userId}::uuid), false)
-         or exists (select 1 from task.project_members pm
-                     where pm.project_id = t.project_id
-                       and pm.user_id = ${userId}::uuid))
+       -- Visibility: super admin / project admin → all project tasks; a plain
+       -- member → only tasks they created or are assigned to.
+       ${visibleTasksPredicate(userId, role === "admin")}
        -- Personal scope filter (narrows within the visible set).
        and (
          ${scopeAll}::bool
@@ -213,11 +235,7 @@ export async function dayCounts(
       ) as d
      where t.is_active = true
        and (t.start_date is not null or t.due_date is not null)
-       and (coalesce((select su.is_super_admin from task.users su
-                       where su.id = ${userId}::uuid), false)
-            or exists (select 1 from task.project_members pm
-                        where pm.project_id = t.project_id
-                          and pm.user_id = ${userId}::uuid))
+       and ${visibleTasksPredicate(userId, role === "admin")}
      group by d
   `;
   const out: Record<string, number> = {};
@@ -237,11 +255,7 @@ export async function countNoDateTasks(
      where t.is_active = true
        and t.start_date is null
        and t.due_date is null
-       and (coalesce((select su.is_super_admin from task.users su
-                       where su.id = ${userId}::uuid), false)
-            or exists (select 1 from task.project_members pm
-                        where pm.project_id = t.project_id
-                          and pm.user_id = ${userId}::uuid))
+       and ${visibleTasksPredicate(userId, role === "admin")}
   `;
   return Number(rows[0]?.n ?? 0);
 }
@@ -284,12 +298,7 @@ export async function countTasksForUser(
                          and t.updated_at >= current_date - interval '7 days')::text      as done_recently
     from task.tasks t
     where t.is_active = true
-      and (coalesce((select su.is_super_admin from task.users su
-                      where su.id = ${userId}::uuid), false)
-       or exists (
-         select 1 from task.project_members pm
-          where pm.project_id = t.project_id and pm.user_id = ${userId}::uuid
-       ))
+      and ${visibleTasksPredicate(userId, role === "admin")}
   `;
   const r = rows[0];
   return {
@@ -301,22 +310,18 @@ export async function countTasksForUser(
 }
 
 /** Can a user READ this task?
- *   - super admin always
- *   - any member of the task's project
+ *   - super admin / project admin (or workspace-admin member) → yes
+ *   - the creator or an assignee → yes
+ *   - a plain project member who is neither → no
+ *  Mirrors visibleTasksPredicate so the detail page matches the list.
  */
 export async function canReadTask(
   taskId: string,
   actorId: string,
-  _role: UserRole
+  role: UserRole
 ): Promise<boolean> {
   const rows = await sql<{ ok: boolean }[]>`
-    select (
-      coalesce((select su.is_super_admin from task.users su
-                 where su.id = ${actorId}::uuid), false)
-      or exists (select 1 from task.project_members pm
-                  where pm.project_id = t.project_id
-                    and pm.user_id = ${actorId}::uuid)
-    ) as ok
+    select ${visibleTasksPredicate(actorId, role === "admin")} as ok
       from task.tasks t
      where t.id = ${taskId}::uuid
      limit 1

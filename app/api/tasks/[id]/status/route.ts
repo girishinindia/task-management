@@ -1,11 +1,11 @@
 import { requireUser } from "@/lib/auth";
 import { statusChangeSchema, MEMBER_STATUSES } from "@/lib/schemas/status";
 import {
-  canReadTask,
   changeTaskStatus,
   getTask,
   regenerateRecurring,
 } from "@/lib/dao/tasks";
+import { isAssignee } from "@/lib/dao/assignments";
 import { canManageProject } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
@@ -41,16 +41,19 @@ export async function POST(
   const task = await getTask(params.id);
   if (!task) return apiError("not_found", "Task not found", 404);
 
-  // Status changes allowed for anyone who can READ the task (creator,
-  // assignee, or admin). Read-permission already implies they have business
-  // context to move the work forward.
-  if (!(await canReadTask(params.id, me.userId, me.role))) {
-    return apiError("forbidden", "You can't change this task's status", 403);
+  // Only the task's assignee(s) — or a project admin / super admin — may change
+  // its status. A non-assignee member can't touch someone else's task.
+  const canManage = await canManageProject(me.userId, me.role, task.project_id);
+  if (!canManage && !(await isAssignee(params.id, me.userId))) {
+    return apiError(
+      "forbidden",
+      "Only the task's assignee or a project admin can change its status.",
+      403
+    );
   }
 
-  // Members may only move a task to In progress or Done; blocking, cancelling,
-  // and re-opening are manager-only (project admin / super admin).
-  const canManage = await canManageProject(me.userId, me.role, task.project_id);
+  // The assignee (a member) may only move a task to In progress or Done;
+  // blocking, cancelling, and re-opening are manager-only.
   if (!canManage && !MEMBER_STATUSES.includes(parsed.data.to_status)) {
     return apiError(
       "forbidden",

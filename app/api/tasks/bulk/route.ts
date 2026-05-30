@@ -6,12 +6,12 @@ import {
 } from "@/lib/schemas/tasks";
 import { MEMBER_STATUSES } from "@/lib/schemas/status";
 import {
-  canReadTask,
   changeTaskStatus,
   getTask,
   setTaskActive,
   updateTask,
 } from "@/lib/dao/tasks";
+import { isAssignee } from "@/lib/dao/assignments";
 import { canManageProject } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
@@ -55,8 +55,10 @@ export async function POST(req: Request) {
 
     if (action === "status") {
       const to = value as TaskStatus;
-      const canRead = await canReadTask(id, me.userId, me.role);
-      if (!canRead || (!canManage && !MEMBER_STATUSES.includes(to))) {
+      // Only the assignee or a manager may change status; members are limited
+      // to In progress / Done.
+      const allowed = canManage || (await isAssignee(id, me.userId));
+      if (!allowed || (!canManage && !MEMBER_STATUSES.includes(to))) {
         skipped += 1;
         continue;
       }

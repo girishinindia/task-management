@@ -42,7 +42,7 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 | Create task (in a project) | ✅ any | ✅ their projects | ❌ |
 | Edit task / dates / priority | ✅ | ✅ their projects | ❌ (read-only) |
 | Assign / transfer (to project members) | ✅ | ✅ their projects | ❌ |
-| Status → In progress / Done | ✅ | ✅ | ✅ |
+| Status → In progress / Done | ✅ | ✅ | ✅ *(only tasks assigned to them)* |
 | Status → Blocked / Cancelled / reopen | ✅ | ✅ | ❌ |
 | Add attachments / submit status report | ✅ | ✅ | ✅ |
 | Deactivate (archive) a task | ✅ | ✅ their projects | ❌ |
@@ -51,9 +51,10 @@ Task Portal is a date-driven, multi-user task manager. The areas covered below:
 | Comment / edit checklist on a visible task | ✅ | ✅ | ✅ |
 | Bulk status (In progress/Done) | ✅ | ✅ | ✅ (their tasks) |
 | Bulk priority / archive | ✅ | ✅ their projects | ❌ |
-| See tasks | all | their projects | their projects |
+| See tasks | all | all in their projects | **only tasks assigned to (or created by) them** |
+| Change a task's status | ✅ | ✅ (their projects) | ✅ **only if they're an assignee** (In progress / Done) |
 
-> Note: visibility is now fully project-scoped. **Super admins** see every task; a non-super **admin** and a **user** both see only tasks in projects they belong to. All management rules are enforced in the API, not just hidden in the UI.
+> Note: task visibility is **assignment-aware**. **Super admins** see every task; a **project admin** (or a workspace admin who is a member) sees **all** tasks in that project; a **plain member** sees **only the tasks they're assigned to or created** — not every task in the project. Status changes follow the same idea: only an **assignee** (or a project admin / super admin) can change a task's status; a member can't touch a task that isn't theirs. All of this is enforced in the API, not just hidden in the UI.
 >
 > **"Admin" of a project ≠ workspace role.** Management of a project's tasks (create / edit / assign / transfer / status-beyond-member / archive) is granted to anyone who is a **project admin** — i.e. `project_members.role = 'admin'` for that project — *regardless of their workspace `users.role`*. So a person whose workspace role is **User** but who was added to a project as its **Admin** can fully manage that project's tasks (and sees the **New task** button). Workspace **admins** additionally manage any project they belong to; **super admins** manage everything. A plain project **member** stays read-only + status reports.
 
@@ -256,8 +257,8 @@ Projects group tasks and have their own team + admins (requires migration `0008`
 2. **Build the team.** Open the project → **Team**. Add **Priya** as **Admin** (a project admin) and **Rahul** as **Member**. ✅ Both appear; you can change a role or remove a member here.
    - **Admin tier is protected.** Only the **project creator** or a **super admin** can grant/revoke **Admin** or remove an existing admin; a plain project **admin** can add/remove/manage **members only**. ✅ Signed in as a non-creator project **admin** (e.g. Bhumika), other **admin** rows show their role as a read-only badge with **no trash icon**, and the "add" role selector offers **Member** only. Members still have a role dropdown + remove. The **creator** row can only be changed/removed by a **super admin**. A direct API call to demote/remove an admin as a non-creator admin returns **403**.
 3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul) — non-members never appear. ✅ The **same project-scoped list** is used by **Manage assignees** on the task detail page and by the **Transfer → "Transfer to"** dropdown. (The server also rejects assigning/transferring a non-member with a 400, so it can't be bypassed.)
-4. **Membership = visibility.** ✅ Rahul (Window C), a member, sees that task under **All tasks**. A non-member (e.g. Sneha) does **not** see it, and opening its URL directly is "not found".
-5. **Project-scoped management.** As Rahul (member, not project admin) the task is **read-only** (no Edit/Delete/Transfer) but he can submit a **status report**. As Priya (project admin) she can edit/delete/transfer/assign within Website Revamp — but not in projects she doesn't administer.
+4. **Assignment = visibility (for members).** When creating the task, assign **Rahul**. ✅ Rahul (Window C) now sees it under **All tasks**. If you leave him unassigned, he does **not** see it (a plain member sees only tasks assigned to / created by them). A **project admin** and **super admin** see every task in the project regardless. A non-member (e.g. Sneha) never sees it, and opening its URL directly is "not found".
+5. **Project-scoped management + status.** As **Rahul** (member, assigned): the task is **read-only** except he can set status to **In progress / Done** (he's the assignee). A member who is **not** assigned can't see or touch the task — a direct status API call returns **403**. As **Priya** (project admin) she can edit/delete/transfer/assign and set any status within Website Revamp — but not in projects she doesn't administer.
 6. **Filters.** On **All tasks**: the **Project** dropdown narrows to one project, the **assignee** dropdown to one person, and the **★ Important** chip shows only High-priority tasks. ✅ They combine and persist across the List/Board toggle.
 7. **Audit.** ✅ `project.created` and `project.member_added` rows show up in the admin **Audit log**.
 
@@ -316,7 +317,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Admin can create users; validation + duplicate-email handled
 - [ ] Users can log in; regular users have no Admin link
 - [ ] Tasks can be created with all fields; new tasks start Pending
-- [ ] Super admin sees all tasks; admins and users see only tasks in their projects
+- [ ] Super admin sees all tasks; a project/workspace admin sees all tasks in their projects; a **plain member sees only tasks assigned to (or created by) them** — not every project task
 - [ ] Scope filter (Created/Assigned/All) works
 - [ ] Status changes work and are recorded in the activity timeline
 - [ ] Task edit (priority/dates/description) saves (admin)
@@ -338,7 +339,8 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
 - [ ] Admin tier protected: a non-creator project admin can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only the project **creator** or a **super admin** can — and the creator can only be removed by a super admin
 - [ ] A **workspace "User"** who is a **project admin** can assign/transfer/edit that project's tasks and sees **New task** (regression check for project-vs-workspace role)
-- [ ] Task visibility is project-scoped — you only see tasks in projects you belong to (workspace admin sees all)
+- [ ] Task visibility is assignment-aware — a plain member sees only tasks assigned to/created by them; project/workspace admins see all in their projects; super admins see all
+- [ ] Status change is assignee-gated — only the task's assignee(s) or a project admin/super admin can change status; a non-assignee member is blocked (UI hidden + API 403)
 - [ ] New task requires a Project; the assignee picker is limited to that project's members — and so are **Manage assignees** (detail page) and **Transfer to** (non-members never shown; server 400s if attempted)
 - [ ] Project, Assignee, and ★ Important (high-priority) filters work on All tasks
 - [ ] Users (members) can only set status to In progress / Done; Blocked/Cancelled/reopen are admin-only (UI + API 403)

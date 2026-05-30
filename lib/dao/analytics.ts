@@ -7,6 +7,7 @@ import { sql } from "@/lib/db";
 import type { UserRole } from "@/lib/jwt";
 import type { TaskPriority, TaskStatus } from "@/lib/schemas/tasks";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/schemas/tasks";
+import { visibleTasksPredicate } from "@/lib/dao/tasks";
 import { completionRate } from "@/lib/analytics-util";
 
 export interface ProjectStat {
@@ -32,7 +33,7 @@ export interface TaskAnalytics {
 
 export async function taskAnalytics(
   userId: string,
-  _role: UserRole
+  role: UserRole
 ): Promise<TaskAnalytics> {
   const [summary, statusRows, priorityRows, projectRows] = await Promise.all([
     sql<
@@ -54,32 +55,20 @@ export async function taskAnalytics(
                            and t.status not in ('done','cancelled'))::int as due_today
         from task.tasks t
        where t.is_active = true
-         and (coalesce((select su.is_super_admin from task.users su
-                         where su.id = ${userId}::uuid), false)
-              or exists (select 1 from task.project_members pm
-                          where pm.project_id = t.project_id
-                            and pm.user_id = ${userId}::uuid))
+         and ${visibleTasksPredicate(userId, role === "admin")}
     `,
     sql<{ k: string; n: number }[]>`
       select t.status::text as k, count(*)::int as n
         from task.tasks t
        where t.is_active = true
-         and (coalesce((select su.is_super_admin from task.users su
-                         where su.id = ${userId}::uuid), false)
-              or exists (select 1 from task.project_members pm
-                          where pm.project_id = t.project_id
-                            and pm.user_id = ${userId}::uuid))
+         and ${visibleTasksPredicate(userId, role === "admin")}
        group by t.status
     `,
     sql<{ k: string; n: number }[]>`
       select t.priority::text as k, count(*)::int as n
         from task.tasks t
        where t.is_active = true
-         and (coalesce((select su.is_super_admin from task.users su
-                         where su.id = ${userId}::uuid), false)
-              or exists (select 1 from task.project_members pm
-                          where pm.project_id = t.project_id
-                            and pm.user_id = ${userId}::uuid))
+         and ${visibleTasksPredicate(userId, role === "admin")}
        group by t.priority
     `,
     sql<ProjectStat[]>`
@@ -93,11 +82,7 @@ export async function taskAnalytics(
         from task.tasks t
         join task.projects pr on pr.id = t.project_id
        where t.is_active = true
-         and (coalesce((select su.is_super_admin from task.users su
-                         where su.id = ${userId}::uuid), false)
-              or exists (select 1 from task.project_members pm
-                          where pm.project_id = t.project_id
-                            and pm.user_id = ${userId}::uuid))
+         and ${visibleTasksPredicate(userId, role === "admin")}
        group by t.project_id, pr.name
        order by total desc, pr.name asc
     `,

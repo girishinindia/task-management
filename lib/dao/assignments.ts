@@ -18,6 +18,20 @@ export interface AssigneeRow {
   assigned_by: string | null;
 }
 
+/** Is this user one of the task's assignees? */
+export async function isAssignee(
+  taskId: string,
+  userId: string
+): Promise<boolean> {
+  const rows = await sql<{ ok: boolean }[]>`
+    select exists (
+      select 1 from task.task_assignments
+       where task_id = ${taskId}::uuid and user_id = ${userId}::uuid
+    ) as ok
+  `;
+  return rows[0]?.ok ?? false;
+}
+
 /** Assignees for one task. */
 export async function listAssigneesForTask(
   taskId: string
