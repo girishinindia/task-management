@@ -207,8 +207,12 @@ export async function authenticate(
 ): Promise<AuthResult> {
   const user = await findUserByEmail(email);
   if (!user) return { ok: false, reason: "not_found" };
-  if (!user.is_active) return { ok: false, reason: "inactive" };
+  // Verify the password BEFORE checking active status. That way "inactive" is
+  // only ever returned to someone who proved they own the account (correct
+  // password), so we can safely show a clear "deactivated" message without
+  // letting an attacker enumerate which emails are real but disabled.
   const matches = await verifyPassword(password, user.password_hash);
   if (!matches) return { ok: false, reason: "wrong_password" };
+  if (!user.is_active) return { ok: false, reason: "inactive" };
   return { ok: true, user };
 }

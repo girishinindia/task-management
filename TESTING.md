@@ -207,7 +207,7 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 1. **Per-date activation** — **Window A** → **Admin** → row for **Karan** → open the **date activation** dialog. Add an override: **Date** = tomorrow, **Status** = `Inactive`, **Note** = `Annual leave`. Save. ✅ The override is listed; default is "active" for all other dates.
 2. Now try to assign Karan to a task **due tomorrow** (create a quick task or edit Task 4's due date to tomorrow and open the assignee picker). ✅ Karan is blocked/flagged as unavailable for that date ("inactive dates block new assignments on that day").
 3. **Edit user** — change Sneha's full name or role via the edit dialog. ✅ The change saves and shows in the table.
-4. **Deactivate account (force logout)** — set **Karan**'s account to **inactive** (edit user → is_active off). ✅ Karan's existing session is revoked: in Karan's window, his next action bounces him to login, and he can no longer sign in until reactivated. Reactivate him afterward.
+4. **Deactivate account (force logout)** — set **Karan**'s account to **inactive** (edit user → is_active off). ✅ Karan's existing session is revoked: in Karan's window, his next action bounces him to login. ✅ When he signs in with his **correct** password, he gets a clear message — *"Your account has been deactivated. Please contact an administrator to regain access."* (not the generic "Email or password is incorrect."). A **wrong** password still shows the generic message, so the clear notice never leaks which emails exist. Reactivate him afterward.
 
 ### Flow 11 — Permissions & authorization
 
@@ -365,6 +365,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Analytics page shows summary cards + by-status / by-priority / by-project, scoped to visible tasks
 - [ ] Per-date activation blocks assignment on inactive dates
 - [ ] Edit user works; deactivating an account force-logs-out and blocks login
+- [ ] A deactivated user logging in with the **correct** password sees a clear "account deactivated — contact an administrator" message; a **wrong** password still shows the generic "Email or password is incorrect." (no enumeration)
 - [ ] Only admins can create/edit/delete/transfer/assign — buttons hidden AND API returns 403 for regular users
 - [ ] Regular user gets a read-only task (no Edit/Delete/Transfer/Manage assignees)
 - [ ] Regular user CAN submit a status report and add/remove their own attachments

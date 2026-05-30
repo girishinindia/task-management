@@ -73,18 +73,31 @@ export async function POST(req: Request) {
 
   const result = await authenticate(email, password);
   if (!result.ok) {
-    // Phase 12 hardening: collapse not_found / wrong_password / inactive into
-    // ONE message so a probe can't enumerate which emails exist as
-    // (active or deactivated) accounts. Deactivated users learn they're
-    // disabled through their admin, not through a different error code.
     await recordAudit({
-      action: "auth.login_failed",
+      action: result.reason === "inactive"
+        ? "auth.login_inactive"
+        : "auth.login_failed",
       entityType: "auth",
       actorEmail: email,
-      summary: `Failed login attempt for ${email}`,
+      summary:
+        result.reason === "inactive"
+          ? `Deactivated account tried to sign in: ${email}`
+          : `Failed login attempt for ${email}`,
       metadata: { reason: result.reason },
       ip,
     });
+
+    // Only a deactivated account that supplied the CORRECT password reaches
+    // reason="inactive" — so it's safe to tell them plainly without leaking
+    // which emails exist. Wrong password / unknown email stay collapsed into
+    // one generic message so probes can't enumerate accounts.
+    if (result.reason === "inactive") {
+      return apiError(
+        "account_inactive",
+        "Your account has been deactivated. Please contact an administrator to regain access.",
+        403
+      );
+    }
     return apiError(
       "invalid_credentials",
       "Email or password is incorrect.",
