@@ -8,6 +8,7 @@
  */
 import { sql } from "@/lib/db";
 import type { UserRole } from "@/lib/jwt";
+import type { TaskStatus } from "@/lib/schemas/tasks";
 
 export type ProjectRole = "admin" | "member";
 
@@ -22,7 +23,15 @@ export interface ProjectRow {
 
 export interface ProjectWithMeta extends ProjectRow {
   member_count: number;
+  /** Active (non-archived) task count — equals the sum of the status counts. */
   task_count: number;
+  pending: number;
+  in_progress: number;
+  done: number;
+  blocked: number;
+  cancelled: number;
+  /** Active, past-due, not done/cancelled. */
+  overdue: number;
   my_role: ProjectRole | null;
 }
 
@@ -44,10 +53,29 @@ export async function listProjectsForUser(
   return sql<ProjectWithMeta[]>`
     select p.id, p.name, p.description, p.created_by, p.created_at, p.updated_at,
            (select count(*)::int from task.project_members m where m.project_id = p.id) as member_count,
-           (select count(*)::int from task.tasks t where t.project_id = p.id) as task_count,
+           coalesce(s.total, 0)        as task_count,
+           coalesce(s.pending, 0)      as pending,
+           coalesce(s.in_progress, 0)  as in_progress,
+           coalesce(s.done, 0)         as done,
+           coalesce(s.blocked, 0)      as blocked,
+           coalesce(s.cancelled, 0)    as cancelled,
+           coalesce(s.overdue, 0)      as overdue,
            (select m2.role from task.project_members m2
              where m2.project_id = p.id and m2.user_id = ${userId}::uuid) as my_role
       from task.projects p
+      left join lateral (
+        select
+          count(*)::int                                                              as total,
+          count(*) filter (where t.status = 'pending')::int                          as pending,
+          count(*) filter (where t.status = 'in_progress')::int                      as in_progress,
+          count(*) filter (where t.status = 'done')::int                             as done,
+          count(*) filter (where t.status = 'blocked')::int                          as blocked,
+          count(*) filter (where t.status = 'cancelled')::int                        as cancelled,
+          count(*) filter (where t.due_date < current_date
+                             and t.status not in ('done','cancelled'))::int          as overdue
+          from task.tasks t
+         where t.project_id = p.id and t.is_active = true
+      ) s on true
      where ${isAdmin}::bool
         or exists (select 1 from task.project_members m
                     where m.project_id = p.id and m.user_id = ${userId}::uuid)
@@ -192,6 +220,77 @@ export async function listProjectMembers(
      where m.project_id = ${projectId}::uuid
      order by (m.role = 'admin') desc, u.full_name asc
   `;
+}
+
+export interface ProjectMemberLite {
+  project_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: ProjectRole;
+}
+
+/** Members of many projects at once, grouped by project_id (admins first, then
+ *  alphabetical). Used to render the team preview on project cards. */
+export async function membersByProject(
+  projectIds: string[]
+): Promise<Record<string, ProjectMemberLite[]>> {
+  if (projectIds.length === 0) return {};
+  const rows = await sql<ProjectMemberLite[]>`
+    select m.project_id, m.user_id, u.full_name, u.email::text as email, m.role
+      from task.project_members m
+      join task.users u on u.id = m.user_id
+     where m.project_id = any(${projectIds}::uuid[])
+     order by (m.role = 'admin') desc, u.full_name asc
+  `;
+  const out: Record<string, ProjectMemberLite[]> = {};
+  for (const r of rows) (out[r.project_id] ??= []).push(r);
+  return out;
+}
+
+export interface ProjectTaskLite {
+  id: string;
+  project_id: string;
+  title: string;
+  status: TaskStatus;
+  due_date: string | null;
+}
+
+/** Top active tasks per project (capped) for the card's quick-view popover.
+ *  Ordered so the most actionable show first: blocked → in progress → pending
+ *  → done → cancelled, then by soonest due date. */
+export async function tasksByProject(
+  projectIds: string[],
+  perProject = 8
+): Promise<Record<string, ProjectTaskLite[]>> {
+  if (projectIds.length === 0) return {};
+  const rows = await sql<ProjectTaskLite[]>`
+    select id, project_id, title, status, due_date
+      from (
+        select t.id, t.project_id, t.title, t.status,
+               to_char(t.due_date, 'YYYY-MM-DD') as due_date,
+               row_number() over (
+                 partition by t.project_id
+                 order by case t.status
+                            when 'blocked' then 0
+                            when 'in_progress' then 1
+                            when 'pending' then 2
+                            when 'done' then 3
+                            else 4
+                          end,
+                          t.due_date asc nulls last,
+                          t.created_at desc
+               ) as rn
+          from task.tasks t
+         where t.project_id = any(${projectIds}::uuid[])
+           and t.is_active = true
+      ) q
+     where q.rn <= ${perProject}
+     order by q.project_id, q.rn
+  `;
+  const out: Record<string, ProjectTaskLite[]> = {};
+  for (const r of rows) (out[r.project_id] ??= []).push(r);
+  return out;
 }
 
 /** Projects the user can manage (create/edit/assign/transfer tasks in):
