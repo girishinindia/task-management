@@ -118,7 +118,7 @@ export function AuditLogView({
             id="action"
             name="action"
             defaultValue={action}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 [&>option]:bg-background [&>option]:text-foreground"
           >
             {ACTION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

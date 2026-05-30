@@ -378,7 +378,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Audit log action filter, search, and pagination work
 - [ ] "My activity" shows each user only their own actions (no actor column)
 - [ ] Priority is editable only by admins via the Edit form; regular users see it read-only (status stays separately changeable)
-- [ ] Dark mode: all text/buttons readable — Calendar Today/nav buttons, unread notification rows, attachment drop-zone, landing page — no white-on-white
+- [ ] Dark mode: all text/buttons readable — Calendar Today/nav buttons, unread notification rows, attachment drop-zone, landing page, **Audit log → Action dropdown options** — no white-on-white
 
 ---
 
