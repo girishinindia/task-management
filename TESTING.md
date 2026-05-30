@@ -333,7 +333,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
 - [ ] Project cards show a task breakdown: completion bar (done/total %), per-status pill counts (Pending/In progress/Blocked/Done/Cancelled, non-zero only), and an Overdue pill — counts cover active (non-archived) tasks
 - [ ] Hovering a card's "N members" shows the team list with each person's role (Admin / Member), admins listed first
-- [ ] Hovering a card's "N tasks" shows full status counts (Pending/In progress/Blocked/Done/Cancelled — incl. zeros — plus Overdue) and a quick list of the top tasks with their status
+- [ ] Project cards show a chip for every status — Pending, In progress, Blocked, Done, Cancelled (zeros shown dimmed) — and hovering a non-zero chip lists that status's tasks; an Overdue chip shows when applicable
 - [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
 - [ ] Admin tier protected: a non-creator project admin can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only the project **creator** or a **super admin** can — and the creator can only be removed by a super admin

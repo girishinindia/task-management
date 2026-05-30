@@ -6,6 +6,7 @@ import {
   listProjectsForUser,
   membersByProject,
   tasksByProject,
+  type ProjectTaskLite,
 } from "@/lib/dao/projects";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -100,49 +101,42 @@ export default async function ProjectsPage() {
               ) : null}
               <div className="mt-4 space-y-2.5">
                 {p.task_count > 0 ? (
-                  <>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span>
-                          {p.done}/{p.task_count} done
-                        </span>
-                        <span className="font-medium">
-                          {pct(p.done, p.task_count)}%
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${pct(p.done, p.task_count)}%` }}
-                        />
-                      </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>
+                        {p.done}/{p.task_count} done
+                      </span>
+                      <span className="font-medium">
+                        {pct(p.done, p.task_count)}%
+                      </span>
                     </div>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {STATUS_ORDER.filter((s) => p[s] > 0).map((s) => (
-                        <span
-                          key={s}
-                          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground"
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              STATUS_DOT[s]
-                            )}
-                          />
-                          {STATUS_LABEL[s]} {p[s]}
-                        </span>
-                      ))}
-                      {p.overdue > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700">
-                          Overdue {p.overdue}
-                        </span>
-                      ) : null}
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-emerald-500"
+                        style={{ width: `${pct(p.done, p.task_count)}%` }}
+                      />
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">No active tasks yet.</p>
                 )}
+
+                {/* One hoverable chip per status (Blocked & Cancelled always shown). */}
+                <div className="flex flex-wrap gap-1.5">
+                  {STATUS_ORDER.map((s) => (
+                    <StatusChip
+                      key={s}
+                      status={s}
+                      count={p[s]}
+                      tasks={tasks.filter((t) => t.status === s)}
+                    />
+                  ))}
+                  {p.overdue > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                      Overdue {p.overdue}
+                    </span>
+                  ) : null}
+                </div>
 
                 <div className="flex items-center gap-4 pt-0.5 text-xs text-muted-foreground">
                   <span className="group/members relative inline-flex items-center gap-1">
@@ -181,62 +175,9 @@ export default async function ProjectsPage() {
                       </span>
                     ) : null}
                   </span>
-                  <span className="group/tasks relative inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1">
                     <ListChecks className="h-3.5 w-3.5" /> {p.task_count} task
                     {p.task_count === 1 ? "" : "s"}
-                    {p.task_count > 0 ? (
-                      <span className="absolute bottom-full left-0 z-20 mb-2 hidden w-64 rounded-lg border bg-popover p-2 text-left shadow-soft-lg group-hover/tasks:block">
-                        {/* Full status counts — Blocked & Cancelled always shown. */}
-                        <span className="mb-1.5 flex flex-wrap gap-1">
-                          {STATUS_ORDER.map((s) => (
-                            <span
-                              key={s}
-                              className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground"
-                            >
-                              <span
-                                className={cn(
-                                  "h-1.5 w-1.5 rounded-full",
-                                  STATUS_DOT[s]
-                                )}
-                              />
-                              {STATUS_LABEL[s]} {p[s]}
-                            </span>
-                          ))}
-                          {p.overdue > 0 ? (
-                            <span className="inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                              Overdue {p.overdue}
-                            </span>
-                          ) : null}
-                        </span>
-                        {/* Quick task list */}
-                        <span className="block max-h-52 space-y-0.5 overflow-y-auto border-t pt-1">
-                          {tasks.map((t) => (
-                            <span
-                              key={t.id}
-                              className="flex items-center gap-2 rounded-md px-1 py-1"
-                            >
-                              <span
-                                className={cn(
-                                  "h-1.5 w-1.5 shrink-0 rounded-full",
-                                  STATUS_DOT[t.status]
-                                )}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-                                {t.title}
-                              </span>
-                              <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground">
-                                {STATUS_LABEL[t.status]}
-                              </span>
-                            </span>
-                          ))}
-                          {p.task_count > tasks.length ? (
-                            <span className="block px-1 pt-0.5 text-[10px] text-muted-foreground">
-                              +{p.task_count - tasks.length} more
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-                    ) : null}
                   </span>
                 </div>
               </div>
@@ -252,4 +193,64 @@ export default async function ProjectsPage() {
 function memberInitials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+/** A status count chip. When it has tasks, hovering reveals a quick list of
+ *  them; a zero chip is shown dimmed (so Blocked / Cancelled are always
+ *  visible) with no popover. */
+function StatusChip({
+  status,
+  count,
+  tasks,
+}: {
+  status: TaskStatus;
+  count: number;
+  tasks: ProjectTaskLite[];
+}) {
+  const dot = STATUS_DOT[status];
+  const label = STATUS_LABEL[status];
+
+  if (count === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground/70">
+        <span className={cn("h-1.5 w-1.5 rounded-full opacity-40", dot)} />
+        {label} 0
+      </span>
+    );
+  }
+
+  return (
+    <span className="group/chip relative inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+      {label} {count}
+      <span className="absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border bg-popover p-2 text-left shadow-soft-lg group-hover/chip:block">
+        <span className="mb-1 block px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label} · {count}
+        </span>
+        <span className="block max-h-52 space-y-0.5 overflow-y-auto">
+          {tasks.map((t) => (
+            <span
+              key={t.id}
+              className="flex items-center gap-2 rounded-md px-1 py-1"
+            >
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
+              <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                {t.title}
+              </span>
+              {t.due_date ? (
+                <span className="shrink-0 text-[9px] text-muted-foreground">
+                  {t.due_date}
+                </span>
+              ) : null}
+            </span>
+          ))}
+          {count > tasks.length ? (
+            <span className="block px-1 pt-0.5 text-[10px] text-muted-foreground">
+              +{count - tasks.length} more
+            </span>
+          ) : null}
+        </span>
+      </span>
+    </span>
+  );
 }

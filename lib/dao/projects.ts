@@ -256,12 +256,11 @@ export interface ProjectTaskLite {
   due_date: string | null;
 }
 
-/** Top active tasks per project (capped) for the card's quick-view popover.
- *  Ordered so the most actionable show first: blocked → in progress → pending
- *  → done → cancelled, then by soonest due date. */
+/** Active tasks per project, capped **per status** so each status chip on the
+ *  card can show a quick preview of its own tasks. Ordered by soonest due date. */
 export async function tasksByProject(
   projectIds: string[],
-  perProject = 8
+  perStatus = 6
 ): Promise<Record<string, ProjectTaskLite[]>> {
   if (projectIds.length === 0) return {};
   const rows = await sql<ProjectTaskLite[]>`
@@ -270,23 +269,15 @@ export async function tasksByProject(
         select t.id, t.project_id, t.title, t.status,
                to_char(t.due_date, 'YYYY-MM-DD') as due_date,
                row_number() over (
-                 partition by t.project_id
-                 order by case t.status
-                            when 'blocked' then 0
-                            when 'in_progress' then 1
-                            when 'pending' then 2
-                            when 'done' then 3
-                            else 4
-                          end,
-                          t.due_date asc nulls last,
-                          t.created_at desc
+                 partition by t.project_id, t.status
+                 order by t.due_date asc nulls last, t.created_at desc
                ) as rn
           from task.tasks t
          where t.project_id = any(${projectIds}::uuid[])
            and t.is_active = true
       ) q
-     where q.rn <= ${perProject}
-     order by q.project_id, q.rn
+     where q.rn <= ${perStatus}
+     order by q.project_id
   `;
   const out: Record<string, ProjectTaskLite[]> = {};
   for (const r of rows) (out[r.project_id] ??= []).push(r);
