@@ -37,11 +37,14 @@ export function TasksBoard({
   rows,
   assigneesByTask,
   manageableProjectIds = [],
+  meId,
 }: {
   rows: TaskRow[];
   assigneesByTask: Record<string, AssigneeRow[]>;
   /** Projects the viewer manages — drives which status transitions they get. */
   manageableProjectIds?: string[];
+  /** Current user id — used to tell whether they're an assignee of a card. */
+  meId: string;
 }) {
   const router = useRouter();
   const canManageSet = new Set(manageableProjectIds);
@@ -57,6 +60,15 @@ export function TasksBoard({
     if (!task || task.status === to) return;
 
     const canManage = canManageSet.has(task.project_id);
+    const amAssignee = (assigneesByTask[task.id] ?? []).some(
+      (a) => a.user_id === meId
+    );
+    if (!canManage && !amAssignee) {
+      toast.error(
+        "Only the task's assignee or a project admin can change its status."
+      );
+      return;
+    }
     if (!canManage && !MEMBER_STATUSES.includes(to)) {
       toast.error("Members can only move tasks to In progress or Done.");
       return;
@@ -150,15 +162,23 @@ export function TasksBoard({
                   email: a.email,
                 }));
                 const overdue = isOverdue(t.due_date, t.status);
+                // Only the assignee or a manager may move (re-status) a card.
+                const canChangeCard =
+                  canManageSet.has(t.project_id) ||
+                  (assigneesByTask[t.id] ?? []).some((a) => a.user_id === meId);
                 return (
                   <div
                     key={t.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", t.id);
-                      e.dataTransfer.effectAllowed = "move";
-                      setDragId(t.id);
-                    }}
+                    draggable={canChangeCard}
+                    onDragStart={
+                      canChangeCard
+                        ? (e) => {
+                            e.dataTransfer.setData("text/plain", t.id);
+                            e.dataTransfer.effectAllowed = "move";
+                            setDragId(t.id);
+                          }
+                        : undefined
+                    }
                     onDragEnd={() => {
                       setDragId(null);
                       setOverCol(null);
@@ -221,6 +241,12 @@ export function TasksBoard({
                         taskId={t.id}
                         currentStatus={t.status}
                         canManage={canManageSet.has(t.project_id)}
+                        canChange={
+                          canManageSet.has(t.project_id) ||
+                          (assigneesByTask[t.id] ?? []).some(
+                            (a) => a.user_id === meId
+                          )
+                        }
                       />
                     </div>
                   </div>

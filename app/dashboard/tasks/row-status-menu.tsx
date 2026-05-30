@@ -23,14 +23,28 @@ export function RowStatusMenu({
   taskId,
   currentStatus,
   canManage = true,
+  canChange = true,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
   /** Managers get every legal transition; members only In progress / Done. */
   canManage?: boolean;
+  /** May this user change the status at all? Only the task's assignee(s) or a
+   *  project admin / super admin can — everyone else sees a read-only badge. */
+  canChange?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+
+  // Not the assignee and not a manager → status is read-only.
+  if (!canChange) {
+    return (
+      <Badge variant={statusVariant(currentStatus)}>
+        {STATUS_LABEL[currentStatus]}
+      </Badge>
+    );
+  }
+
   const legal = canManage
     ? LEGAL_TRANSITIONS[currentStatus]
     : LEGAL_TRANSITIONS[currentStatus].filter((s) =>

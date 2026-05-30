@@ -46,11 +46,14 @@ export function TasksTable({
   rows,
   assigneesByTask,
   manageableProjectIds = [],
+  meId,
 }: {
   rows: TaskRow[];
   assigneesByTask: Record<string, AssigneeRow[]>;
   /** Projects the viewer manages — drives which status transitions they get. */
   manageableProjectIds?: string[];
+  /** Current user id — used to tell whether they're an assignee of a row. */
+  meId: string;
 }) {
   const router = useRouter();
   const canManageSet = new Set(manageableProjectIds);
@@ -249,6 +252,12 @@ export function TasksTable({
                       taskId={t.id}
                       currentStatus={t.status}
                       canManage={canManageSet.has(t.project_id)}
+                      canChange={
+                        canManageSet.has(t.project_id) ||
+                        (assigneesByTask[t.id] ?? []).some(
+                          (a) => a.user_id === meId
+                        )
+                      }
                     />
                   </TableCell>
                   <TableCell>

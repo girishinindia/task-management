@@ -269,12 +269,14 @@ export default async function TasksPage({
           rows={rows}
           assigneesByTask={assigneesByTask}
           manageableProjectIds={manageableIds}
+          meId={me.userId}
         />
       ) : (
         <TasksTable
           rows={rows}
           assigneesByTask={assigneesByTask}
           manageableProjectIds={manageableIds}
+          meId={me.userId}
         />
       )}
     </div>

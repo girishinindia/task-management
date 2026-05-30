@@ -340,7 +340,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Admin tier protected: a non-creator project admin can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only the project **creator** or a **super admin** can — and the creator can only be removed by a super admin
 - [ ] A **workspace "User"** who is a **project admin** can assign/transfer/edit that project's tasks and sees **New task** (regression check for project-vs-workspace role)
 - [ ] Task visibility is assignment-aware — a plain member sees only tasks assigned to/created by them; project/workspace admins see all in their projects; super admins see all
-- [ ] Status change is assignee-gated — only the task's assignee(s) or a project admin/super admin can change status; a non-assignee member is blocked (UI hidden + API 403)
+- [ ] Status change is assignee-gated — only the task's assignee(s) or a project admin/super admin can change status. In List/Board a non-assignee sees the status as a **read-only badge** (no dropdown, card not draggable); the API also returns 403 if attempted directly
 - [ ] New task requires a Project; the assignee picker is limited to that project's members — and so are **Manage assignees** (detail page) and **Transfer to** (non-members never shown; server 400s if attempted)
 - [ ] Project, Assignee, and ★ Important (high-priority) filters work on All tasks
 - [ ] Users (members) can only set status to In progress / Done; Blocked/Cancelled/reopen are admin-only (UI + API 403)
