@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,6 +80,13 @@ export function TasksFilters({
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
 
+  // The search box is controlled by local state so typing stays smooth, but it
+  // re-syncs whenever the URL's q changes (e.g. applying a saved view / clear).
+  const [q, setQ] = useState(defaultQ);
+  useEffect(() => {
+    setQ(defaultQ);
+  }, [defaultQ]);
+
   function update(patch: Record<string, string | undefined>) {
     const next = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(patch)) {
@@ -116,14 +123,17 @@ export function TasksFilters({
       <div className="flex flex-wrap items-center gap-2">
         <Input
           placeholder="Search title or description…  ( / )"
-          defaultValue={defaultQ}
+          value={q}
           className="max-w-xs"
           data-hotkey="search"
-          onChange={(e) => update({ q: e.target.value })}
+          onChange={(e) => {
+            setQ(e.target.value);
+            update({ q: e.target.value });
+          }}
         />
         {showScope ? (
           <Select
-            defaultValue={defaultScope ?? "all"}
+            value={defaultScope ?? "all"}
             onValueChange={(v) => update({ scope: v })}
           >
             <SelectTrigger className="w-[170px]">
@@ -137,7 +147,7 @@ export function TasksFilters({
           </Select>
         ) : null}
         <Select
-          defaultValue={defaultStatus}
+          value={defaultStatus}
           onValueChange={(v) => update({ status: v })}
         >
           <SelectTrigger className="w-[160px]">
@@ -153,7 +163,7 @@ export function TasksFilters({
           </SelectContent>
         </Select>
         <Select
-          defaultValue={defaultPriority}
+          value={defaultPriority}
           onValueChange={(v) => update({ priority: v })}
         >
           <SelectTrigger className="w-[150px]">
@@ -185,7 +195,7 @@ export function TasksFilters({
         </button>
         {projects.length > 0 ? (
           <Select
-            defaultValue={defaultProject || "all"}
+            value={defaultProject || "all"}
             onValueChange={(v) => update({ project_id: v })}
           >
             <SelectTrigger className="w-[170px]">
@@ -202,7 +212,7 @@ export function TasksFilters({
           </Select>
         ) : null}
         <Select
-          defaultValue={defaultAssignee || "all"}
+          value={defaultAssignee || "all"}
           onValueChange={(v) => update({ assignee_id: v })}
         >
           <SelectTrigger className="w-[170px]">
@@ -218,7 +228,7 @@ export function TasksFilters({
           </SelectContent>
         </Select>
         <Select
-          defaultValue={defaultSort}
+          value={defaultSort}
           onValueChange={(v) => updateParam("sort", v, "due_asc")}
         >
           <SelectTrigger className="w-[150px]">
@@ -233,7 +243,7 @@ export function TasksFilters({
           </SelectContent>
         </Select>
         <Select
-          defaultValue={defaultArchived}
+          value={defaultArchived}
           onValueChange={(v) => updateParam("archived", v, "active")}
         >
           <SelectTrigger className="w-[140px]">

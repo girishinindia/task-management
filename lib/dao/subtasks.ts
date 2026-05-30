@@ -4,6 +4,33 @@
  */
 import { sql } from "@/lib/db";
 
+/** Insert an ordered set of checklist items within an existing transaction
+ *  (used by createTask so a task + its initial checklist are atomic). */
+export async function insertSubtasks(
+  t: typeof sql,
+  taskId: string,
+  titles: string[],
+  createdBy: string
+): Promise<void> {
+  const clean = titles.map((s) => s.trim()).filter(Boolean).slice(0, 50);
+  if (clean.length === 0) return;
+  const values = clean.map((title, i) => ({
+    task_id: taskId,
+    title: title.slice(0, 200),
+    position: i,
+    created_by: createdBy,
+  }));
+  await t`
+    insert into task.task_subtasks ${t(
+      values,
+      "task_id",
+      "title",
+      "position",
+      "created_by"
+    )}
+  `;
+}
+
 export interface SubtaskRow {
   id: number;
   task_id: string;

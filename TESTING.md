@@ -151,6 +151,7 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 2. Create **Task 1**: Title `Design new landing page hero`, a short description, **Priority** = High, **Start date** = today, **Due date** = today + 2 days. Under **Assignees**, pick **Priya**. Click **Create task**. ✅ Redirected to the task detail page; status shows **Pending**; Priya listed under assignees.
 3. Create **Tasks 2–7** the same way using the Section 4 table. For **Task 5**, pick **both Sneha and Priya** as assignees. For **Task 6** and **Task 7**, leave start/due empty except Task 7's due = **yesterday**.
    - **Times (optional).** Each date field has a matching **time** box. On **Task 2**, set a **due time** (e.g. 17:00). ✅ The detail page shows "Due … · 5:00 PM" and the list/board show the time under the date. A time can't be set without its date (✅ inline error). Editing the task preloads the saved time. (Overdue/reminders are still evaluated by day.)
+   - **Checklist while creating (optional).** In the **Checklist (optional)** box on the create form, type an item and press **Enter** (or **Add**) — add a few (e.g. "Draft copy", "Review", "Publish"), remove one with **×**. ✅ On **Create task**, you land on the detail page with those items already in the **Checklist** section (in order, all unticked). Creating with no items behaves exactly as before.
 4. ✅ Note: new tasks always start as **Pending** — there's no status field on the create form by design. (Status is changed later via the status menu so every change is audited.)
 
 ### Flow 4 — Multi-user visibility & assignment
@@ -253,6 +254,7 @@ Projects group tasks and have their own team + admins (requires migration `0008`
 
 1. **Create a project.** As **Admin** (Window A), sidebar → **Projects** → **New project**. Name it `Website Revamp`, save. ✅ It appears as a card showing you as **admin**, 1 member, 0 tasks.
 2. **Build the team.** Open the project → **Team**. Add **Priya** as **Admin** (a project admin) and **Rahul** as **Member**. ✅ Both appear; you can change a role or remove a member here.
+   - **Admin tier is protected.** Only the **project creator** or a **super admin** can grant/revoke **Admin** or remove an existing admin; a plain project **admin** can add/remove/manage **members only**. ✅ Signed in as a non-creator project **admin** (e.g. Bhumika), other **admin** rows show their role as a read-only badge with **no trash icon**, and the "add" role selector offers **Member** only. Members still have a role dropdown + remove. The **creator** row can only be changed/removed by a **super admin**. A direct API call to demote/remove an admin as a non-creator admin returns **403**.
 3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul) — non-members never appear. ✅ The **same project-scoped list** is used by **Manage assignees** on the task detail page and by the **Transfer → "Transfer to"** dropdown. (The server also rejects assigning/transferring a non-member with a 400, so it can't be bypassed.)
 4. **Membership = visibility.** ✅ Rahul (Window C), a member, sees that task under **All tasks**. A non-member (e.g. Sneha) does **not** see it, and opening its URL directly is "not found".
 5. **Project-scoped management.** As Rahul (member, not project admin) the task is **read-only** (no Edit/Delete/Transfer) but he can submit a **status report**. As Priya (project admin) she can edit/delete/transfer/assign within Website Revamp — but not in projects she doesn't administer.
@@ -331,6 +333,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
 - [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
+- [ ] Admin tier protected: a non-creator project admin can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only the project **creator** or a **super admin** can — and the creator can only be removed by a super admin
 - [ ] A **workspace "User"** who is a **project admin** can assign/transfer/edit that project's tasks and sees **New task** (regression check for project-vs-workspace role)
 - [ ] Task visibility is project-scoped — you only see tasks in projects you belong to (workspace admin sees all)
 - [ ] New task requires a Project; the assignee picker is limited to that project's members — and so are **Manage assignees** (detail page) and **Transfer to** (non-members never shown; server 400s if attempted)
@@ -344,6 +347,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Comment attachment: image/PDF/Word only (≤10 MB) — image shows a thumbnail, others a file link; wrong type rejected; attachment-only comment allowed
 - [ ] Transfer "to" dropdown excludes the current user; self-transfer via API returns 400
 - [ ] Checklist (subtasks): add / tick / delete; progress bar + x-of-y update and persist
+- [ ] New task form: optional **Checklist** items added at creation appear (in order) on the new task's detail page
 - [ ] Recurring task shows a "Repeats …" badge and spawns the next occurrence (dates shifted) when marked Done
 - [ ] Due-today (amber) and overdue (red) reminders appear in notifications, once per task per day
 - [ ] Bulk actions: multi-select → set status / set priority / archive; "skipped" count for non-managed tasks

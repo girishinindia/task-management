@@ -7,6 +7,7 @@
  */
 import { sql, tx } from "@/lib/db";
 import { insertAssignments, listAssigneesForTask } from "@/lib/dao/assignments";
+import { insertSubtasks } from "@/lib/dao/subtasks";
 import { nextOccurrenceDates, type RecurRule } from "@/lib/recurrence";
 import type {
   TaskCreateInput,
@@ -330,8 +331,11 @@ export async function createTask(
   input: TaskCreateInput
 ): Promise<TaskRow> {
   const assigneeIds = input.assignee_ids ?? [];
+  const subtaskTitles = (input.subtasks ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  if (assigneeIds.length === 0) {
+  if (assigneeIds.length === 0 && subtaskTitles.length === 0) {
     const rows = await sql<TaskRow[]>`
       insert into task.tasks (
         title, description, status, priority, start_date, due_date,
@@ -354,7 +358,7 @@ export async function createTask(
     return rows[0];
   }
 
-  // Task + initial assignees in one transaction.
+  // Task + initial assignees + initial checklist in one transaction.
   return tx<TaskRow>(async (t) => {
     const inserted = await t<TaskRow[]>`
       insert into task.tasks (
@@ -376,7 +380,12 @@ export async function createTask(
       returning ${SELECT_COLS}
     `;
     const task = inserted[0]!;
-    await insertAssignments(t, task.id, assigneeIds, createdBy);
+    if (assigneeIds.length > 0) {
+      await insertAssignments(t, task.id, assigneeIds, createdBy);
+    }
+    if (subtaskTitles.length > 0) {
+      await insertSubtasks(t, task.id, subtaskTitles, createdBy);
+    }
     return task;
   });
 }
@@ -459,6 +468,7 @@ export async function regenerateRecurring(
     due_time: task.due_time ?? undefined,
     recur_rule: task.recur_rule,
     assignee_ids: assignees.map((a) => a.user_id),
+    subtasks: [],
   });
 }
 

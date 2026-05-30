@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import {
-  canManageProject,
+  canModifyMember,
   getProject,
   removeMember,
 } from "@/lib/dao/projects";
@@ -10,7 +10,8 @@ import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
-/** Remove a member from a project. Project admin or workspace admin. */
+/** Remove a member from a project. Project admin or workspace admin — but an
+ *  admin can only be removed by the project creator or a super admin. */
 export async function DELETE(
   req: Request,
   { params }: { params: { id: string; userId: string } }
@@ -18,13 +19,14 @@ export async function DELETE(
   const me = await requireUser();
   const project = await getProject(params.id);
   if (!project) return apiError("not_found", "Project not found", 404);
-  if (!(await canManageProject(me.userId, me.role, params.id))) {
-    return apiError(
-      "forbidden",
-      "Only a project admin (or workspace admin) can manage members.",
-      403
-    );
-  }
+
+  const guard = await canModifyMember({
+    actorId: me.userId,
+    role: me.role,
+    project,
+    targetUserId: params.userId,
+  });
+  if (!guard.ok) return apiError("forbidden", guard.message, 403);
 
   const removed = await removeMember(params.id, params.userId);
 

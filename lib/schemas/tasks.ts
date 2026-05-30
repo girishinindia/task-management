@@ -66,6 +66,12 @@ export const taskCreateSchema = z
     due_time: optionalTime,
     recur_rule: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
     assignee_ids: z.array(z.string().uuid()).max(50).optional().default([]),
+    /** Optional checklist items to seed the task with, created in order. */
+    subtasks: z
+      .array(z.string().trim().min(1).max(200))
+      .max(50)
+      .optional()
+      .default([]),
   })
   .refine(
     (v) => !v.start_date || !v.due_date || v.due_date >= v.start_date,

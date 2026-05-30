@@ -121,6 +121,56 @@ export async function canManageProject(
   );
 }
 
+/** Guard for changing a member's role or removing them.
+ *
+ *  Baseline: the actor must be able to manage the project at all. On top of
+ *  that, the **admin tier is protected** — granting/revoking Admin, or
+ *  removing an existing admin, is reserved for the **project creator** or a
+ *  **super admin**. A plain project admin can therefore only add / remove /
+ *  manage regular *members*, never other admins. The creator themselves can
+ *  only be touched by a super admin.
+ *
+ *  `nextRole` is the role being assigned (for add / role-change); omit it for a
+ *  plain removal. */
+export async function canModifyMember(opts: {
+  actorId: string;
+  role: UserRole;
+  project: ProjectRow;
+  targetUserId: string;
+  nextRole?: ProjectRole;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { actorId, role, project, targetUserId, nextRole } = opts;
+
+  if (!(await canManageProject(actorId, role, project.id))) {
+    return {
+      ok: false,
+      message: "Only a project admin (or workspace admin) can manage members.",
+    };
+  }
+
+  const isSuper = await isSuperAdmin(actorId);
+  const isCreator = project.created_by === actorId;
+  const targetRole = await getProjectRole(targetUserId, project.id);
+  const targetIsCreator = project.created_by === targetUserId;
+  const adminTierInvolved =
+    targetRole === "admin" || nextRole === "admin" || targetIsCreator;
+
+  if (targetIsCreator && !isSuper) {
+    return {
+      ok: false,
+      message: "Only a super admin can change the project creator.",
+    };
+  }
+  if (adminTierInvolved && !isSuper && !isCreator) {
+    return {
+      ok: false,
+      message:
+        "Only the project creator or a super admin can manage admins.",
+    };
+  }
+  return { ok: true };
+}
+
 /** Access = see the project's tasks. Super admin OR any member. */
 export async function canAccessProject(
   userId: string,

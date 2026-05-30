@@ -6,6 +6,7 @@ import {
   canAccessProject,
   canManageProject,
   getProject,
+  isSuperAdmin,
   listProjectMembers,
 } from "@/lib/dao/projects";
 import { listActiveAssignableUsers } from "@/lib/dao/users";
@@ -26,10 +27,12 @@ export default async function ProjectDetailPage({
   if (!(await canAccessProject(me.userId, me.role, params.id))) notFound();
 
   const canManage = await canManageProject(me.userId, me.role, params.id);
-  const [members, allUsers] = await Promise.all([
+  const [members, allUsers, isSuper] = await Promise.all([
     listProjectMembers(params.id),
     canManage ? listActiveAssignableUsers() : Promise.resolve([]),
+    isSuperAdmin(me.userId),
   ]);
+  const isCreator = project.created_by === me.userId;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -79,6 +82,9 @@ export default async function ProjectDetailPage({
         }))}
         canManage={canManage}
         meId={me.userId}
+        isSuper={isSuper}
+        isCreator={isCreator}
+        creatorId={project.created_by}
       />
     </div>
   );

@@ -33,17 +33,30 @@ export function ProjectMembers({
   allUsers,
   canManage,
   meId,
+  isSuper = false,
+  isCreator = false,
+  creatorId = null,
 }: {
   projectId: string;
   initialMembers: Member[];
   allUsers: UserOpt[];
   canManage: boolean;
   meId: string;
+  /** Viewer is a super admin. */
+  isSuper?: boolean;
+  /** Viewer created this project. */
+  isCreator?: boolean;
+  /** The project creator's user id (protected member). */
+  creatorId?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [addUser, setAddUser] = useState("");
   const [addRole, setAddRole] = useState<"admin" | "member">("member");
+
+  // Only the project creator or a super admin may grant/revoke the Admin role
+  // or remove an existing admin. A plain project admin manages members only.
+  const canTouchAdmins = isSuper || isCreator;
 
   const memberIds = useMemo(
     () => new Set(initialMembers.map((m) => m.user_id)),
@@ -150,7 +163,10 @@ export function ProjectMembers({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              {/* Only the creator / super admin may add someone as an Admin. */}
+              {canTouchAdmins ? (
+                <SelectItem value="admin">Admin</SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
           <Button onClick={add} disabled={busy || !addUser}>
@@ -160,51 +176,75 @@ export function ProjectMembers({
       ) : null}
 
       <ul className="divide-y rounded-lg border">
-        {initialMembers.map((m) => (
-          <li key={m.user_id} className="flex items-center gap-3 px-3 py-2.5">
-            <UserAvatar fullName={m.full_name} email={m.email} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{m.full_name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {m.email}
+        {initialMembers.map((m) => {
+          const targetIsCreator = !!creatorId && m.user_id === creatorId;
+          const targetIsAdmin = m.role === "admin";
+          // Changing a role can promote to Admin, so role edits are admin-tier.
+          const canEditRole =
+            canManage && (targetIsCreator ? isSuper : canTouchAdmins);
+          // Members: any manager may remove. Admins/creator: creator/super only
+          // (the creator can only be removed by a super admin).
+          const canRemoveThis =
+            canManage &&
+            m.user_id !== meId &&
+            (targetIsCreator
+              ? isSuper
+              : targetIsAdmin
+                ? canTouchAdmins
+                : true);
+          return (
+            <li key={m.user_id} className="flex items-center gap-3 px-3 py-2.5">
+              <UserAvatar fullName={m.full_name} email={m.email} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">
+                  {m.full_name}
+                  {targetIsCreator ? (
+                    <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+                      · creator
+                    </span>
+                  ) : null}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {m.email}
+                </div>
               </div>
-            </div>
-            {canManage ? (
-              <Select
-                value={m.role}
-                onValueChange={(v) =>
-                  changeRole(m.user_id, v as "admin" | "member")
-                }
-              >
-                <SelectTrigger className="h-8 w-[110px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge
-                variant={m.role === "admin" ? "default" : "secondary"}
-                className="capitalize"
-              >
-                {m.role}
-              </Badge>
-            )}
-            {canManage && m.user_id !== meId ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => remove(m.user_id)}
-                disabled={busy}
-                aria-label="Remove member"
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-              </Button>
-            ) : null}
-          </li>
-        ))}
+              {canEditRole ? (
+                <Select
+                  value={m.role}
+                  onValueChange={(v) =>
+                    changeRole(m.user_id, v as "admin" | "member")
+                  }
+                >
+                  <SelectTrigger className="h-8 w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge
+                  variant={m.role === "admin" ? "default" : "secondary"}
+                  className="capitalize"
+                >
+                  {m.role}
+                </Badge>
+              )}
+              {canRemoveThis ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => remove(m.user_id)}
+                  disabled={busy}
+                  aria-label="Remove member"
+                >
+                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </Button>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

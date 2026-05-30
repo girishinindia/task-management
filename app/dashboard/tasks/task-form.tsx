@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { ListChecks, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   TASK_PRIORITIES,
@@ -53,6 +54,7 @@ const emptyValues: TaskFormValues = {
   due_time: "",
   recur_rule: null,
   assignee_ids: [],
+  subtasks: [],
 };
 
 export function TaskForm({
@@ -76,6 +78,27 @@ export function TaskForm({
       recur_rule: initial?.recur_rule ?? null,
     },
   });
+
+  // Local input for the optional "add a checklist item" box (create mode).
+  const [newSub, setNewSub] = useState("");
+  const subtasks = form.watch("subtasks") ?? [];
+
+  function addSubtask() {
+    const v = newSub.trim();
+    if (!v) return;
+    const cur = form.getValues("subtasks") ?? [];
+    if (cur.length >= 50) return;
+    form.setValue("subtasks", [...cur, v.slice(0, 200)], { shouldDirty: true });
+    setNewSub("");
+  }
+  function removeSubtask(i: number) {
+    const cur = form.getValues("subtasks") ?? [];
+    form.setValue(
+      "subtasks",
+      cur.filter((_, idx) => idx !== i),
+      { shouldDirty: true }
+    );
+  }
 
   async function onSubmit(data: TaskFormValues) {
     const url =
@@ -336,6 +359,65 @@ export function TaskForm({
           />
           <p className="text-xs text-muted-foreground">
             You can change assignees on the task detail page after creating it.
+          </p>
+        </div>
+      ) : null}
+
+      {mode === "create" ? (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <ListChecks className="h-4 w-4 text-muted-foreground" />
+            Checklist (optional)
+          </Label>
+
+          {subtasks.length > 0 ? (
+            <ul className="space-y-1 rounded-md border p-2">
+              {subtasks.map((s, i) => (
+                <li
+                  key={`${s}-${i}`}
+                  className="group flex items-center gap-2 rounded-sm px-1 py-1 text-sm hover:bg-accent/40"
+                >
+                  <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[3px] border border-input" />
+                  <span className="flex-1">{s}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeSubtask(i)}
+                    className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                    aria-label={`Remove "${s}"`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Input
+              value={newSub}
+              placeholder="Add a checklist item and press Enter…"
+              onChange={(e) => setNewSub(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addSubtask();
+                }
+              }}
+              className="h-9"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addSubtask}
+              disabled={!newSub.trim() || subtasks.length >= 50}
+            >
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            These become checklist items on the task. You can add, tick, or
+            remove more on the task page afterward.
           </p>
         </div>
       ) : null}

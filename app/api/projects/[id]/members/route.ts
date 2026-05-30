@@ -1,13 +1,15 @@
 import { requireUser } from "@/lib/auth";
 import { addMemberSchema } from "@/lib/schemas/projects";
-import { addMember, canManageProject, getProject } from "@/lib/dao/projects";
+import { addMember, canModifyMember, getProject } from "@/lib/dao/projects";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
-/** Add a member (or change their role). Project admin or workspace admin. */
+/** Add a member (or change their role). Project admin or workspace admin —
+ *  but only the project creator or a super admin may grant/revoke the Admin
+ *  role or touch an existing admin. */
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }
@@ -15,13 +17,6 @@ export async function POST(
   const me = await requireUser();
   const project = await getProject(params.id);
   if (!project) return apiError("not_found", "Project not found", 404);
-  if (!(await canManageProject(me.userId, me.role, params.id))) {
-    return apiError(
-      "forbidden",
-      "Only a project admin (or workspace admin) can manage members.",
-      403
-    );
-  }
 
   let body: unknown;
   try {
@@ -39,6 +34,15 @@ export async function POST(
       parsed.error.flatten().fieldErrors
     );
   }
+
+  const guard = await canModifyMember({
+    actorId: me.userId,
+    role: me.role,
+    project,
+    targetUserId: parsed.data.user_id,
+    nextRole: parsed.data.role,
+  });
+  if (!guard.ok) return apiError("forbidden", guard.message, 403);
 
   await addMember({
     project_id: params.id,
