@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutGrid, List, Plus } from "lucide-react";
+import { LayoutGrid, List, ListTree, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
   listTasksForUser,
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { TasksTable } from "./tasks-table";
 import { TasksBoard } from "./tasks-board";
+import { TasksTree, type TreeGroupBy } from "./tasks-tree";
 import { TasksFilters, type DateChip } from "./tasks-filters";
 import {
   TASK_PRIORITIES,
@@ -46,11 +47,25 @@ type SP = {
   /** Result ordering. */
   sort?: TaskSort;
   /** Which view template to render. */
-  view?: "list" | "board";
+  view?: "list" | "board" | "tree";
+  /** Tree-view grouping dimension. */
+  tree_group?: TreeGroupBy;
 };
 
-/** Build a tasks URL that keeps the current filters but switches the view. */
-function withView(sp: SP, view: "list" | "board"): string {
+const TREE_GROUPS: { value: TreeGroupBy; label: string }[] = [
+  { value: "assignee", label: "Assignee" },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+];
+
+/** Build a tasks URL that keeps the current filters but switches the view
+ *  (and, for the tree view, the grouping dimension). */
+function withView(
+  sp: SP,
+  view: "list" | "board" | "tree",
+  treeGroup?: TreeGroupBy
+): string {
   const p = new URLSearchParams();
   if (sp.q) p.set("q", sp.q);
   if (sp.status) p.set("status", sp.status);
@@ -64,8 +79,17 @@ function withView(sp: SP, view: "list" | "board"): string {
   if (sp.archived) p.set("archived", sp.archived);
   if (sp.sort) p.set("sort", sp.sort);
   if (view === "board") p.set("view", "board");
+  else if (view === "tree") {
+    p.set("view", "tree");
+    const g = treeGroup ?? sp.tree_group;
+    if (g && g !== "assignee") p.set("tree_group", g);
+  }
   const s = p.toString();
   return s ? `/dashboard/tasks?${s}` : "/dashboard/tasks";
+}
+
+function safeTreeGroup(v?: string): TreeGroupBy {
+  return v === "day" || v === "week" || v === "month" ? v : "assignee";
 }
 
 function safeStatus(v?: string): TaskStatus | "all" {
@@ -201,7 +225,13 @@ export default async function TasksPage({
     isSuperAdmin(me.userId),
   ]);
   const assigneesByTask = await listAssigneesForTasks(rows.map((r) => r.id));
-  const view = searchParams.view === "board" ? "board" : "list";
+  const view =
+    searchParams.view === "board"
+      ? "board"
+      : searchParams.view === "tree"
+        ? "tree"
+        : "list";
+  const treeGroup = safeTreeGroup(searchParams.tree_group);
   const manageableIds = manageable.map((p) => p.id);
   const canCreate = manageable.length > 0;
 
@@ -237,6 +267,16 @@ export default async function TasksPage({
               <LayoutGrid className="h-4 w-4" /> Board
             </Link>
           </Button>
+          <Button
+            asChild
+            size="sm"
+            variant={view === "tree" ? "secondary" : "ghost"}
+            className="h-7 px-2.5"
+          >
+            <Link href={withView(searchParams, "tree")}>
+              <ListTree className="h-4 w-4" /> Tree
+            </Link>
+          </Button>
         </div>
         {canCreate ? (
           <Button asChild>
@@ -264,12 +304,41 @@ export default async function TasksPage({
         showScope={!isSuper}
       />
 
+      {view === "tree" ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-medium text-muted-foreground">
+            Group by:
+          </span>
+          {TREE_GROUPS.map((g) => (
+            <Button
+              key={g.value}
+              asChild
+              size="sm"
+              variant={treeGroup === g.value ? "secondary" : "ghost"}
+              className="h-7 px-2.5"
+            >
+              <Link href={withView(searchParams, "tree", g.value)}>
+                {g.label}
+              </Link>
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       {view === "board" ? (
         <TasksBoard
           rows={rows}
           assigneesByTask={assigneesByTask}
           manageableProjectIds={manageableIds}
           meId={me.userId}
+        />
+      ) : view === "tree" ? (
+        <TasksTree
+          rows={rows}
+          assigneesByTask={assigneesByTask}
+          manageableProjectIds={manageableIds}
+          meId={me.userId}
+          groupBy={treeGroup}
         />
       ) : (
         <TasksTable

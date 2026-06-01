@@ -47,6 +47,21 @@ export function priorityVariant(
   }
 }
 
+/** Soft dot colours for low-chrome "dot + label" pills (tree view, cards). */
+export const STATUS_DOT: Record<TaskStatus, string> = {
+  pending: "bg-slate-400",
+  in_progress: "bg-sky-500",
+  done: "bg-emerald-500",
+  blocked: "bg-amber-500",
+  cancelled: "bg-zinc-400",
+};
+
+export const PRIORITY_DOT: Record<TaskPriority, string> = {
+  high: "bg-red-500",
+  medium: "bg-amber-500",
+  low: "bg-slate-300",
+};
+
 export function isOverdue(
   due: string | null,
   status: TaskStatus

@@ -15,7 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { LEGAL_TRANSITIONS, MEMBER_STATUSES } from "@/lib/schemas/status";
 import type { TaskStatus } from "@/lib/schemas/tasks";
-import { STATUS_LABEL, statusVariant } from "./task-meta";
+import { STATUS_DOT, STATUS_LABEL, statusVariant } from "./task-meta";
+import { cn } from "@/lib/utils";
 
 /** Compact status dropdown for tasks-list rows. No note prompt — pure quick
  *  action. The detail page's StatusMenu still supports notes. */
@@ -24,6 +25,7 @@ export function RowStatusMenu({
   currentStatus,
   canManage = true,
   canChange = true,
+  subtle = false,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -32,17 +34,30 @@ export function RowStatusMenu({
   /** May this user change the status at all? Only the task's assignee(s) or a
    *  project admin / super admin can — everyone else sees a read-only badge. */
   canChange?: boolean;
+  /** Low-chrome look (dot + label) for dense views like the tree. */
+  subtle?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
+  // The visible status chip: a solid badge by default, or a soft dot + label
+  // in `subtle` mode (keeps dense views light).
+  const chip = subtle ? (
+    <span className="inline-flex items-center gap-1.5 text-xs text-foreground/80">
+      <span
+        className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[currentStatus])}
+      />
+      {STATUS_LABEL[currentStatus]}
+    </span>
+  ) : (
+    <Badge variant={statusVariant(currentStatus)}>
+      {STATUS_LABEL[currentStatus]}
+    </Badge>
+  );
+
   // Not the assignee and not a manager → status is read-only.
   if (!canChange) {
-    return (
-      <Badge variant={statusVariant(currentStatus)}>
-        {STATUS_LABEL[currentStatus]}
-      </Badge>
-    );
+    return chip;
   }
 
   const legal = canManage
@@ -80,9 +95,7 @@ export function RowStatusMenu({
           aria-label={`Change status from ${STATUS_LABEL[currentStatus]}`}
           disabled={pending}
         >
-          <Badge variant={statusVariant(currentStatus)}>
-            {STATUS_LABEL[currentStatus]}
-          </Badge>
+          {chip}
           {pending ? (
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           ) : (

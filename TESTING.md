@@ -200,7 +200,8 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 3. **Calendar** (sidebar → **Calendar**): ✅ tasks land on their due dates. Days that have tasks show a blue **"N tasks"** label, and hovering any day shows a tooltip (e.g. "2 tasks on this day — click to view"). Clicking a day opens that day's tasks.
 4. **Filters / chips** on **All tasks**: test **Today**, **Tomorrow**, **This week**, **Overdue**, and **No date**. ✅ Each chip narrows the list correctly (e.g. "Tomorrow" → Task 4; "No date" → Task 6; "Overdue" → Task 7).
 5. **Search**: type part of a title (e.g. `webinar`). ✅ Results filter to Task 5.
-6. **List / Board views.** On **All tasks**, use the **List | Board** toggle (top-right). ✅ **Board** shows a Kanban layout with columns per status — Pending, In progress, Blocked, Done, Cancelled — and each card shows priority, due date, and assignees. Move a card forward using its status dropdown (same transition rules + permissions as elsewhere). Apply a filter, then switch List ↔ Board: ✅ the filter is preserved across the toggle.
+6. **List / Board / Tree views.** On **All tasks**, use the **List | Board | Tree** toggle (top-right). ✅ **Board** shows a Kanban layout with columns per status — Pending, In progress, Blocked, Done, Cancelled — and each card shows priority, due date, and assignees. Move a card forward using its status dropdown (same transition rules + permissions as elsewhere). Apply a filter, then switch views: ✅ the filter is preserved across the toggle.
+7. **Tree view.** Switch to **Tree**, then pick a **Group by**: **Assignee / Day / Week / Month**. ✅ Tasks nest under collapsible group headers (e.g. one node per assignee, with that person's tasks underneath; or one node per day/week/month by due date). Tasks with no assignee/date fall under **Unassigned / No date** at the bottom. Each header shows a count + "x/y done"; **Expand all / Collapse all** work. Combine with the **Project** filter to get "this project's tasks grouped by assignee". Status/priority/links and the assignee-gated status control behave just like the list.
 
 ### Flow 10 — Admin: per-date activation, edit, deactivate
 
@@ -332,6 +333,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Date chips (Today/Tomorrow/Week/Overdue/No date) filter correctly
 - [ ] Search filters by title
 - [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
+- [ ] Tree view groups tasks by Assignee / Day / Week / Month into collapsible nodes (Unassigned / No date last); Expand-all / Collapse-all work; filters (e.g. Project) apply
 - [ ] Project cards show a task breakdown: completion bar (done/total %), per-status pill counts (Pending/In progress/Blocked/Done/Cancelled, non-zero only), and an Overdue pill — counts cover active (non-archived) tasks
 - [ ] Hovering a card's "N members" shows the team list with each person's role (Admin / Member), admins listed first
 - [ ] Project cards show a chip for every status — Pending, In progress, Blocked, Done, Cancelled (zeros shown dimmed) — and hovering a non-zero chip lists that status's tasks; an Overdue chip shows when applicable
