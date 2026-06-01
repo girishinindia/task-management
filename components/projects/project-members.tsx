@@ -54,9 +54,9 @@ export function ProjectMembers({
   const [addUser, setAddUser] = useState("");
   const [addRole, setAddRole] = useState<"admin" | "member">("member");
 
-  // Only the project creator or a super admin may grant/revoke the Admin role
-  // or remove an existing admin. A plain project admin manages members only.
-  const canTouchAdmins = isSuper || isCreator;
+  // Only a super admin may grant/revoke the Admin role or remove an existing
+  // admin. A plain project admin manages members only.
+  const canTouchAdmins = isSuper;
 
   const memberIds = useMemo(
     () => new Set(initialMembers.map((m) => m.user_id)),

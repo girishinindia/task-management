@@ -256,7 +256,7 @@ Projects group tasks and have their own team + admins (requires migration `0008`
 
 1. **Create a project.** As **Admin** (Window A), sidebar → **Projects** → **New project**. Name it `Website Revamp`, save. ✅ It appears as a card showing you as **admin**, 1 member, 0 tasks.
 2. **Build the team.** Open the project → **Team**. Add **Priya** as **Admin** (a project admin) and **Rahul** as **Member**. ✅ Both appear; you can change a role or remove a member here.
-   - **Admin tier is protected.** Only the **project creator** or a **super admin** can grant/revoke **Admin** or remove an existing admin; a plain project **admin** can add/remove/manage **members only**. ✅ Signed in as a non-creator project **admin** (e.g. Bhumika), other **admin** rows show their role as a read-only badge with **no trash icon**, and the "add" role selector offers **Member** only. Members still have a role dropdown + remove. The **creator** row can only be changed/removed by a **super admin**. A direct API call to demote/remove an admin as a non-creator admin returns **403**.
+   - **Admin tier is super-admin-only.** Only a **super admin** can grant/revoke **Admin** or remove an existing admin; a project **admin** (who isn't a super admin) can add/remove/manage **members only**. ✅ Signed in as a project **admin** (e.g. Bhumika), other **admin** rows show their role as a read-only badge with **no trash icon**, and the "add" role selector offers **Member** only. Members still have a role dropdown + remove. A direct API call to grant/demote/remove an admin as a non-super admin returns **403**. (Projects are always created by a super admin, so there's no separate "creator" tier — super admin is the single authority over admins.)
 3. **Project admin creates tasks.** In **Window B (Priya)** — a regular workspace user but an *admin of Website Revamp* — a **New task** button now appears. Create a task and, in the **Project** selector, pick **Website Revamp**. ✅ The assignee picker lists only **Website Revamp** members (Priya, Rahul) — non-members never appear. ✅ The **same project-scoped list** is used by **Manage assignees** on the task detail page and by the **Transfer → "Transfer to"** dropdown. (The server also rejects assigning/transferring a non-member with a 400, so it can't be bypassed.)
 4. **Assignment = visibility (for members).** When creating the task, assign **Rahul**. ✅ Rahul (Window C) now sees it under **All tasks**. If you leave him unassigned, he does **not** see it (a plain member sees only tasks assigned to / created by them). A **project admin** and **super admin** see every task in the project regardless. A non-member (e.g. Sneha) never sees it, and opening its URL directly is "not found".
 5. **Project-scoped management + status.** As **Rahul** (member, assigned): the task is **read-only** except he can set status to **In progress / Done** (he's the assignee). A member who is **not** assigned can't see or touch the task — a direct status API call returns **403**. As **Priya** (project admin) she can edit/delete/transfer/assign and set any status within Website Revamp — but not in projects she doesn't administer.
@@ -322,15 +322,15 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Scope filter (Created/Assigned/All) works
 - [ ] Status changes work and are recorded in the activity timeline
 - [ ] Task edit (priority/dates/description) saves (admin)
-- [ ] Transfer reassigns the task and logs the audit trail + reason (admin only)
+- [ ] Transfer reassigns the task; the audit log + My activity show the reason in the entry text (not just metadata); transfer is admin-only
 - [ ] File upload works (public CDN link); URL attachment works; invalid input rejected; removal works
-- [ ] Notifications fire on assign / transfer / status change
+- [ ] Notifications fire on assign / transfer / status change — on transfer, **both** the new assignee (receiver) **and** the person it was moved away from get notified
 - [ ] Bell updates live (SSE) without refresh; mark-as-read + mark-all-read work
-- [ ] Notifications page: search (title/body), category chips with counts, and precise type filter all work and combine with the All/Unread tab
+- [ ] Notifications page: search (title/body), category chips with counts, and precise type filter all work and combine with the All/Unread tab — and a chip only appears when the user actually has notifications of that kind (e.g. the **Admin** chip never shows for a normal user)
 - [ ] Today view groups tasks; no-date bucket shown
 - [ ] Overdue badge appears for past-due open tasks
 - [ ] Calendar places tasks on due dates; days with tasks show a count hint + tooltip; day view opens
-- [ ] Date chips (Today/Tomorrow/Week/Overdue/No date) filter correctly
+- [ ] Date chips (Today/Tomorrow/Week/Overdue/No date) filter correctly — "This week" is the Mon–Sun week containing today, and Today/Overdue use a consistent local "today" (no timezone drift)
 - [ ] Search filters by title
 - [ ] List ↔ Board (Kanban) toggle works on All tasks; board groups by status, cards show priority/due/assignees, and filters persist across the toggle
 - [ ] Tree view groups tasks by Assignee / Day / Week / Month into collapsible nodes (Unassigned / No date last); Expand-all / Collapse-all work; filters (e.g. Project) apply
@@ -339,7 +339,7 @@ Tick each as you verify it. Add a note for anything that fails.
 - [ ] Project cards show a chip for every status — Pending, In progress, Blocked, Done, Cancelled (zeros shown dimmed) — and hovering a non-zero chip lists that status's tasks; an Overdue chip shows when applicable
 - [ ] Workspace admin can create a project and manage its team (add/remove members, set project admins)
 - [ ] Project admins create/edit/transfer/assign within their project; members are read-only + status reports
-- [ ] Admin tier protected: a non-creator project admin can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only the project **creator** or a **super admin** can — and the creator can only be removed by a super admin
+- [ ] Admin tier is super-admin-only: a project admin (non-super) can manage **members** but cannot add/remove/demote **admins** (UI hides controls + API 403); only a **super admin** can manage admins
 - [ ] A **workspace "User"** who is a **project admin** can assign/transfer/edit that project's tasks and sees **New task** (regression check for project-vs-workspace role)
 - [ ] Task visibility is assignment-aware — a plain member sees only tasks assigned to/created by them; project/workspace admins see all in their projects; super admins see all
 - [ ] Status change is assignee-gated — only the task's assignee(s) or a project admin/super admin can change status. In List/Board a non-assignee sees the status as a **read-only badge** (no dropdown, card not draggable); the API also returns 403 if attempted directly

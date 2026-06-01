@@ -3,6 +3,7 @@ import { transferSchema } from "@/lib/schemas/transfer";
 import { getTask, transferTask } from "@/lib/dao/tasks";
 import { listAssigneesForTask } from "@/lib/dao/assignments";
 import { canManageProject, findNonMembers } from "@/lib/dao/projects";
+import { notifyUsers } from "@/lib/dao/notifications";
 import { recordAudit } from "@/lib/dao/audit";
 import { clientIp } from "@/lib/ratelimit";
 import { apiError, apiOk } from "@/lib/api-response";
@@ -105,24 +106,44 @@ export async function POST(
     return apiError("server_error", result.message, 500);
   }
 
-  // Return refreshed assignee list so the UI can re-render without a second
-  // round trip.
+  // Refreshed assignee list (also lets us resolve the new assignee's name).
+  const assignees = await listAssigneesForTask(params.id);
+  const toName =
+    assignees.find((a) => a.user_id === parsed.data.to_user_id)?.full_name ??
+    "another member";
+  const fromId = parsed.data.from_user_id ?? null;
+  const reason = parsed.data.reason?.trim() || null;
+
   await recordAudit({
     action: "task.transferred",
     entityType: "task",
     entityId: params.id,
     actorId: me.userId,
     actorEmail: me.email,
-    summary: `Transferred "${task.title}"`,
+    // Include the reason (and recipient) so it's visible in the Audit log and
+    // "My activity", not just buried in metadata.
+    summary: `Transferred "${task.title}" to ${toName}${
+      reason ? ` — ${reason}` : ""
+    }`,
     metadata: {
-      from_user_id: parsed.data.from_user_id ?? null,
+      from_user_id: fromId,
       to_user_id: parsed.data.to_user_id,
-      reason: parsed.data.reason ?? null,
+      reason,
     },
     ip: clientIp(req),
   });
 
-  const assignees = await listAssigneesForTask(params.id);
+  // The receiver is already notified by the transfer trigger; also notify the
+  // person it was moved away FROM (skip add-only transfers / self-unassign).
+  if (fromId && fromId !== me.userId) {
+    await notifyUsers([fromId], {
+      type: "task_transferred",
+      title: `Task reassigned: "${task.title}"`,
+      body: `Moved from you to ${toName}${reason ? ` — ${reason}` : ""}`,
+      link: `/dashboard/tasks/${params.id}`,
+    });
+  }
+
   return apiOk({
     task: result.task,
     transfer: result.transfer,

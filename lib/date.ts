@@ -65,3 +65,53 @@ export function formatTime12(s: string | null | undefined): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
+
+/** Add (or subtract) whole days to a "YYYY-MM-DD" string, returning the same
+ *  format. Parsed at local noon so DST never shifts the day. */
+export function addDaysIso(iso: string, n: number): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** The Monday (week start) of the week containing `iso`, as "YYYY-MM-DD". */
+export function mondayOfWeekIso(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  const dow = d.getDay(); // 0 = Sunday … 6 = Saturday
+  const sinceMonday = (dow + 6) % 7;
+  return addDaysIso(iso, -sinceMonday);
+}
+
+export interface DateChipRange {
+  from: string | null;
+  to: string | null;
+  no_date: boolean;
+  overdue: boolean;
+}
+
+/** Resolve a date chip into concrete filter flags, anchored to a single
+ *  `today` so the result is consistent regardless of timezone. "This week" is
+ *  the Mon–Sun calendar week that contains today. */
+export function dateChipRange(chip: string, today: string): DateChipRange {
+  switch (chip) {
+    case "today":
+      return { from: today, to: today, no_date: false, overdue: false };
+    case "tomorrow": {
+      const t = addDaysIso(today, 1);
+      return { from: t, to: t, no_date: false, overdue: false };
+    }
+    case "week": {
+      const mon = mondayOfWeekIso(today);
+      return { from: mon, to: addDaysIso(mon, 6), no_date: false, overdue: false };
+    }
+    case "overdue":
+      return { from: null, to: null, no_date: false, overdue: true };
+    case "no_date":
+      return { from: null, to: null, no_date: true, overdue: false };
+    default:
+      return { from: null, to: null, no_date: false, overdue: false };
+  }
+}

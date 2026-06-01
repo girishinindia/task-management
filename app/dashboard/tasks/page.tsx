@@ -25,7 +25,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/schemas/tasks";
-import { todayIso } from "@/lib/date";
+import { dateChipRange, todayIso } from "@/lib/date";
 
 export const metadata = { title: "Tasks" };
 export const dynamic = "force-dynamic";
@@ -138,8 +138,9 @@ function safeChip(v?: string): DateChip | "none" {
   return "none";
 }
 
-/** Resolve a quick chip into concrete (from, to, no_date, overdue) flags.
- *  When the explicit range is also present, the chip wins. */
+/** Resolve a quick chip into concrete (from, to, no_date, overdue) flags via
+ *  the shared, timezone-consistent helper. When no chip is active, fall back to
+ *  the explicit from/to range. */
 function resolveDateFilter(
   chip: DateChip | "none",
   explicitFrom: string | null,
@@ -150,40 +151,8 @@ function resolveDateFilter(
   no_date: boolean;
   overdue: boolean;
 } {
-  const today = todayIso();
-  if (chip === "today") return { from: today, to: today, no_date: false, overdue: false };
-  if (chip === "tomorrow") {
-    const t = addDays(today, 1);
-    return { from: t, to: t, no_date: false, overdue: false };
-  }
-  if (chip === "week") {
-    // Week = today through today + 6 days (rolling 7-day window).
-    return {
-      from: today,
-      to: addDays(today, 6),
-      no_date: false,
-      overdue: false,
-    };
-  }
-  if (chip === "overdue")
-    return { from: null, to: null, no_date: false, overdue: true };
-  if (chip === "no_date")
-    return { from: null, to: null, no_date: true, overdue: false };
-  return {
-    from: explicitFrom,
-    to: explicitTo,
-    no_date: false,
-    overdue: false,
-  };
-}
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T12:00:00`);
-  d.setDate(d.getDate() + n);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  if (chip !== "none") return dateChipRange(chip, todayIso());
+  return { from: explicitFrom, to: explicitTo, no_date: false, overdue: false };
 }
 
 export default async function TasksPage({
@@ -216,6 +185,7 @@ export default async function TasksPage({
       to: resolved.to,
       no_date: resolved.no_date,
       overdue: resolved.overdue,
+      today: todayIso(),
       archived,
       sort,
     }),

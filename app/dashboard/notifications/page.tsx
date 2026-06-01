@@ -55,6 +55,7 @@ function iconForType(type: string) {
   if (type === "task_overdue") return AlertTriangle;
   if (type === "task_due_soon") return CalendarClock;
   if (type === "password_reset_requested") return KeyRound;
+  if (type === "password_changed") return KeyRound;
   return Bell;
 }
 
@@ -80,6 +81,7 @@ function colorForType(type: string): string {
     case "task_overdue":
       return "bg-red-100 text-red-700";
     case "password_reset_requested":
+    case "password_changed":
       return "bg-orange-100 text-orange-700";
     default:
       return "bg-muted text-muted-foreground";
@@ -135,12 +137,17 @@ export default async function NotificationsPage({
   ]);
 
   const totalCount = Object.values(countsByType).reduce((a, b) => a + b, 0);
+  // Only show a category chip the user actually has notifications for — so e.g.
+  // the "Admin" chip never appears for someone who never receives admin notices.
   const categoryChips = NOTIFICATION_CATEGORIES.map((c) => ({
     key: c.key,
     label: c.label,
     count: c.types.reduce((sum, t) => sum + (countsByType[t] ?? 0), 0),
-  }));
-  const typeOptions = NOTIFICATION_TYPES.map((t) => ({
+  })).filter((c) => c.count > 0);
+  // Only offer types the user actually has, too.
+  const typeOptions = NOTIFICATION_TYPES.filter(
+    (t) => (countsByType[t] ?? 0) > 0
+  ).map((t) => ({
     value: t,
     label: NOTIFICATION_TYPE_LABEL[t],
     count: countsByType[t] ?? 0,

@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<string, string> = {
   task_overdue: "Overdue",
   project_requested: "Project requested",
   password_reset_requested: "Password reset",
+  password_changed: "Password changed",
 };
 
 /** All known notification types (for the precise "type" dropdown). */

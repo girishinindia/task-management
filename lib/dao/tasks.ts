@@ -68,9 +68,12 @@ export interface ListTasksOptions {
   /** When true, returns ONLY tasks with no start_date AND no due_date.
    *  Overrides from/to/overdue. */
   no_date?: boolean;
-  /** When true, returns ONLY tasks where due_date < current_date AND
+  /** When true, returns ONLY tasks where due_date < today AND
    *  status NOT IN ('done','cancelled'). Combines with other filters. */
   overdue?: boolean;
+  /** The caller's "today" (YYYY-MM-DD). Used for the overdue comparison so it
+   *  matches the app's timezone instead of the DB session's current_date. */
+  today?: string | null;
   /** Archive filter. "active" (default) hides archived tasks; "archived"
    *  shows only archived; "all" shows both. */
   archived?: "active" | "archived" | "all";
@@ -150,6 +153,7 @@ export async function listTasksForUser(
   const from = !noDate && opts.from ? opts.from : null;
   const to = !noDate && opts.to ? opts.to : null;
   const overdue = opts.overdue === true;
+  const today = opts.today ?? null;
 
   const orderBy =
     sort === "due_desc"
@@ -196,7 +200,7 @@ export async function listTasksForUser(
        and (${to}::date is null
             or coalesce(t.start_date, t.due_date) <= ${to}::date)
        and (${overdue}::bool = false
-            or (t.due_date < current_date
+            or (t.due_date < coalesce(${today}::date, current_date)
                 and t.status not in ('done','cancelled')))
        and (${archived}::text = 'all'
             or (${archived}::text = 'active' and t.is_active = true)

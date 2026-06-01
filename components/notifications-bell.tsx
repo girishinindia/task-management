@@ -53,6 +53,7 @@ function iconForType(type: string) {
   if (type === "task_overdue") return AlertTriangle;
   if (type === "task_due_soon") return CalendarClock;
   if (type === "password_reset_requested") return KeyRound;
+  if (type === "password_changed") return KeyRound;
   return Bell;
 }
 
@@ -78,6 +79,7 @@ function colorForType(type: string): string {
     case "task_overdue":
       return "bg-red-100 text-red-700";
     case "password_reset_requested":
+    case "password_changed":
       return "bg-orange-100 text-orange-700";
     default:
       return "bg-muted text-muted-foreground";

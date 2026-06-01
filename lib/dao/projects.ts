@@ -151,12 +151,12 @@ export async function canManageProject(
 
 /** Guard for changing a member's role or removing them.
  *
- *  Baseline: the actor must be able to manage the project at all. On top of
- *  that, the **admin tier is protected** — granting/revoking Admin, or
- *  removing an existing admin, is reserved for the **project creator** or a
- *  **super admin**. A plain project admin can therefore only add / remove /
- *  manage regular *members*, never other admins. The creator themselves can
- *  only be touched by a super admin.
+ *  Baseline: the actor must be able to manage the project. On top of that, the
+ *  **admin tier is reserved for super admins** — only a super admin may grant
+ *  or revoke the Admin role, or remove an existing admin. A plain project admin
+ *  can therefore only add / remove / manage regular *members*, never admins.
+ *  (Projects are always created by a super admin, so there is no separate
+ *  "creator" tier to distinguish — super admin is the single source of truth.)
  *
  *  `nextRole` is the role being assigned (for add / role-change); omit it for a
  *  plain removal. */
@@ -177,23 +177,14 @@ export async function canModifyMember(opts: {
   }
 
   const isSuper = await isSuperAdmin(actorId);
-  const isCreator = project.created_by === actorId;
   const targetRole = await getProjectRole(targetUserId, project.id);
-  const targetIsCreator = project.created_by === targetUserId;
-  const adminTierInvolved =
-    targetRole === "admin" || nextRole === "admin" || targetIsCreator;
+  const adminTierInvolved = targetRole === "admin" || nextRole === "admin";
 
-  if (targetIsCreator && !isSuper) {
-    return {
-      ok: false,
-      message: "Only a super admin can change the project creator.",
-    };
-  }
-  if (adminTierInvolved && !isSuper && !isCreator) {
+  if (adminTierInvolved && !isSuper) {
     return {
       ok: false,
       message:
-        "Only the project creator or a super admin can manage admins.",
+        "Only a super admin can grant, change, or remove a project admin.",
     };
   }
   return { ok: true };

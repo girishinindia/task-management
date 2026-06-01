@@ -45,9 +45,10 @@ export async function POST(
   // Force re-login everywhere with the new credentials.
   await revokeAllSessions(params.id);
 
-  // Let the user know (shows next time they sign in).
+  // Let the user know (shows next time they sign in). Uses its own type so it
+  // doesn't get grouped under the admin-only "Password reset" category.
   await notifyUsers([params.id], {
-    type: "password_reset_requested",
+    type: "password_changed",
     title: "Your password was reset",
     body: "An admin set a new temporary password for your account. Please change it after signing in.",
     link: "/dashboard",
