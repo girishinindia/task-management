@@ -37,6 +37,15 @@ type BadgeVariant =
   | "destructive"
   | "muted";
 
+/** Surface the user-entered context (transfer reason, status note) stored in
+ *  an entry's metadata, so it's visible in the log — not just buried in JSON. */
+function contextNote(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata) return null;
+  const reason = typeof metadata.reason === "string" ? metadata.reason.trim() : "";
+  const note = typeof metadata.note === "string" ? metadata.note.trim() : "";
+  return reason || note || null;
+}
+
 function actionVariant(action: string): BadgeVariant {
   if (
     action.endsWith("_failed") ||
@@ -183,7 +192,14 @@ export function AuditLogView({
                       )}
                     </td>
                   ) : null}
-                  <td className="px-4 py-2.5">{r.summary}</td>
+                  <td className="px-4 py-2.5">
+                    <div>{r.summary}</div>
+                    {contextNote(r.metadata) ? (
+                      <div className="mt-0.5 text-xs italic text-muted-foreground">
+                        &ldquo;{contextNote(r.metadata)}&rdquo;
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">
                     {r.ip ?? "—"}
                   </td>

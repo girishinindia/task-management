@@ -120,11 +120,9 @@ export async function POST(
     entityId: params.id,
     actorId: me.userId,
     actorEmail: me.email,
-    // Include the reason (and recipient) so it's visible in the Audit log and
-    // "My activity", not just buried in metadata.
-    summary: `Transferred "${task.title}" to ${toName}${
-      reason ? ` — ${reason}` : ""
-    }`,
+    // The reason is rendered from metadata as a sub-line in the log views, so
+    // keep the summary itself clean (just the recipient).
+    summary: `Transferred "${task.title}" to ${toName}`,
     metadata: {
       from_user_id: fromId,
       to_user_id: parsed.data.to_user_id,
