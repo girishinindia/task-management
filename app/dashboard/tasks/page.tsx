@@ -316,6 +316,7 @@ export default async function TasksPage({
           assigneesByTask={assigneesByTask}
           manageableProjectIds={manageableIds}
           meId={me.userId}
+          archived={archived}
         />
       )}
     </div>

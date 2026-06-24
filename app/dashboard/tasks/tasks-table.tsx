@@ -47,6 +47,7 @@ export function TasksTable({
   assigneesByTask,
   manageableProjectIds = [],
   meId,
+  archived = "active",
 }: {
   rows: TaskRow[];
   assigneesByTask: Record<string, AssigneeRow[]>;
@@ -54,6 +55,9 @@ export function TasksTable({
   manageableProjectIds?: string[];
   /** Current user id — used to tell whether they're an assignee of a row. */
   meId: string;
+  /** Current archive filter — drives which bulk action (Archive vs Restore)
+   *  makes sense to show. */
+  archived?: "active" | "archived" | "all";
 }) {
   const router = useRouter();
   const canManageSet = new Set(manageableProjectIds);
@@ -157,24 +161,30 @@ export function TasksTable({
               ))}
             </SelectContent>
           </Select>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            disabled={working}
-            onClick={() => applyBulk("archive")}
-          >
-            <Archive className="h-3.5 w-3.5" /> Archive
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            disabled={working}
-            onClick={() => applyBulk("restore")}
-          >
-            <ArchiveRestore className="h-3.5 w-3.5" /> Restore
-          </Button>
+          {/* Archive makes sense for active tasks; Restore only for archived
+              ones. In the "all" view we keep both since the list is mixed. */}
+          {archived !== "archived" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={working}
+              onClick={() => applyBulk("archive")}
+            >
+              <Archive className="h-3.5 w-3.5" /> Archive
+            </Button>
+          ) : null}
+          {archived !== "active" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={working}
+              onClick={() => applyBulk("restore")}
+            >
+              <ArchiveRestore className="h-3.5 w-3.5" /> Restore
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="ghost"
