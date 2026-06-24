@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Client-side reCAPTCHA Enterprise (v3, invisible) helper.
+ * Client-side reCAPTCHA helper (classic v3, invisible).
  *
- * Lazy-loads the enterprise.js script once per browser tab and exposes a
+ * Lazy-loads the api.js script once per browser tab and exposes a
  * `useRecaptcha()` hook that returns `execute(action)`. When the feature is
  * disabled via NEXT_PUBLIC_RECAPTCHA_ENABLED=false, `execute` returns
  * undefined and the form should submit without a token (the server-side
@@ -14,13 +14,11 @@ import { useCallback, useEffect, useState } from "react";
 declare global {
   interface Window {
     grecaptcha?: {
-      enterprise?: {
-        ready: (cb: () => void) => void;
-        execute: (
-          siteKey: string,
-          opts: { action: string }
-        ) => Promise<string>;
-      };
+      ready: (cb: () => void) => void;
+      execute: (
+        siteKey: string,
+        opts: { action: string }
+      ) => Promise<string>;
     };
   }
 }
@@ -37,8 +35,8 @@ export function useRecaptcha() {
     if (!ENABLED || !SITE_KEY) return;
     if (typeof window === "undefined") return;
 
-    if (window.grecaptcha?.enterprise) {
-      window.grecaptcha.enterprise.ready(() => setReady(true));
+    if (window.grecaptcha) {
+      window.grecaptcha.ready(() => setReady(true));
       return;
     }
 
@@ -46,11 +44,11 @@ export function useRecaptcha() {
     scriptInjected = true;
 
     const s = document.createElement("script");
-    s.src = `https://www.google.com/recaptcha/enterprise.js?render=${SITE_KEY}`;
+    s.src = `https://www.google.com/recaptcha/api.js?render=${SITE_KEY}`;
     s.async = true;
     s.defer = true;
     s.onload = () => {
-      window.grecaptcha?.enterprise?.ready(() => setReady(true));
+      window.grecaptcha?.ready(() => setReady(true));
     };
     document.body.appendChild(s);
   }, []);
@@ -59,9 +57,9 @@ export function useRecaptcha() {
     async (action: string): Promise<string | undefined> => {
       if (!ENABLED || !SITE_KEY) return undefined;
       if (typeof window === "undefined") return undefined;
-      if (!window.grecaptcha?.enterprise) return undefined;
+      if (!window.grecaptcha) return undefined;
       try {
-        return await window.grecaptcha.enterprise.execute(SITE_KEY, { action });
+        return await window.grecaptcha.execute(SITE_KEY, { action });
       } catch {
         return undefined;
       }

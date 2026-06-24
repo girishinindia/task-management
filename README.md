@@ -125,11 +125,13 @@ BUNNY_STORAGE_KEY=...
 BUNNY_STORAGE_URL=https://<region>.storage.bunnycdn.com/<zone>
 BUNNY_CDN_URL=https://<your-cdn-pullzone>
 
-# reCAPTCHA Enterprise (optional — disable for local dev)
+# reCAPTCHA v3 (classic — optional, disable for local dev)
+# Create a v3 key pair at https://www.google.com/recaptcha/admin and add your
+# domain(s) under the key's Domains list. Server uses the secret key; the
+# browser uses the site key. NEXT_PUBLIC_* are build-time — redeploy after change.
 RECAPTCHA_ENABLED=false
 NEXT_PUBLIC_RECAPTCHA_ENABLED=false
-RECAPTCHA_API_KEY=...
-RECAPTCHA_PROJECT_ID=...
+RECAPTCHA_SECRET_KEY=...
 NEXT_PUBLIC_RECAPTCHA_SITE_KEY=...
 RECAPTCHA_MIN_SCORE=0.5
 
@@ -282,7 +284,7 @@ lib/
   date.ts            tz-safe YYYY-MM-DD helpers
   password.ts        bcrypt wrappers
   bunny.ts           Bunny Storage + MIME allowlist
-  captcha.ts         reCAPTCHA Enterprise verify
+  captcha.ts         reCAPTCHA v3 verify (siteverify)
   dao/               every Postgres touchpoint (users, tasks, assignments,
                      user-date-status, attachments, notifications, activity)
   schemas/           zod schemas shared client+server
