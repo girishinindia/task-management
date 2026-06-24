@@ -118,6 +118,34 @@ export function TasksFilters({
     }
   }
 
+  /** Reset every filter at once. Keeps only the current view (List/Board/Tree)
+   *  and its tree grouping — the rest of the query string is dropped. */
+  function clearAll() {
+    const next = new URLSearchParams();
+    const view = params.get("view");
+    const treeGroup = params.get("tree_group");
+    if (view) next.set("view", view);
+    if (treeGroup) next.set("tree_group", treeGroup);
+    setQ("");
+    startTransition(() => {
+      const qs = next.toString();
+      router.replace(qs ? `/dashboard/tasks?${qs}` : "/dashboard/tasks");
+    });
+  }
+
+  const anyFilter =
+    defaultQ !== "" ||
+    (defaultScope ?? "all") !== "all" ||
+    defaultStatus !== "all" ||
+    defaultPriority !== "all" ||
+    (defaultProject ?? "") !== "" ||
+    (defaultAssignee ?? "") !== "" ||
+    (defaultSort ?? "due_asc") !== "due_asc" ||
+    (defaultArchived ?? "active") !== "active" ||
+    defaultChip !== "none" ||
+    defaultFrom !== "" ||
+    defaultTo !== "";
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -255,6 +283,16 @@ export function TasksFilters({
             <SelectItem value="all">Active + archived</SelectItem>
           </SelectContent>
         </Select>
+        {anyFilter ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={clearAll}
+          >
+            Clear filters
+          </Button>
+        ) : null}
         {pending ? (
           <span className="text-xs text-muted-foreground">Updating…</span>
         ) : null}
