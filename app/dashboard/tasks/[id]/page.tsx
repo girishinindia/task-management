@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowLeft, Repeat } from "lucide-react";
 import { requireUser } from "@/lib/auth";
@@ -47,14 +47,17 @@ export default async function TaskDetailPage({
 }) {
   const me = await requireUser();
   const task = await getTask(params.id);
-  if (!task) notFound();
+  // Task was deleted, or the viewer can no longer see it (e.g. they handed it
+  // off and are no longer the assignee/creator/admin). Send them to All tasks
+  // instead of a dead 404.
+  if (!task) redirect("/dashboard/tasks");
 
   const assignees = await listAssigneesForTask(task.id);
 
   // Read rule: workspace admin or a member of the task's project.
   const canChangeStatus = await canReadTask(task.id, me.userId, me.role);
   if (!canChangeStatus) {
-    notFound();
+    redirect("/dashboard/tasks");
   }
 
   // Manage rule: workspace admin or a project admin of the task's project.
