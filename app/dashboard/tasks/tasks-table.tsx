@@ -37,10 +37,10 @@ import {
   STATUS_LABEL,
   isOverdue,
   localDate,
-  priorityVariant,
 } from "./task-meta";
 import { formatTime12 } from "@/lib/date";
 import { RowStatusMenu } from "./row-status-menu";
+import { RowPriorityMenu } from "./row-priority-menu";
 
 export function TasksTable({
   rows,
@@ -271,9 +271,11 @@ export function TasksTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <Badge variant={priorityVariant(t.priority)}>
-                      {PRIORITY_LABEL[t.priority]}
-                    </Badge>
+                    <RowPriorityMenu
+                      taskId={t.id}
+                      currentPriority={t.priority}
+                      canChange={canManageSet.has(t.project_id)}
+                    />
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {t.due_date ? format(localDate(t.due_date), "PP") : "—"}
