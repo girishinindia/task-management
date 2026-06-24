@@ -91,7 +91,8 @@ export default async function TodayPage() {
           <CalendarDays className="mx-auto h-6 w-6 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium">Nothing on today.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Either you're caught up, or no tasks overlap with today's date.
+            Either you&apos;re caught up, or no tasks overlap with today&apos;s
+            date.
           </p>
         </div>
       ) : (

@@ -21,7 +21,7 @@ export default function LoginPage() {
       <CardHeader>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
         <CardDescription>
-          Sign in to manage your team's tasks.
+          Sign in to manage your team&apos;s tasks.
         </CardDescription>
       </CardHeader>
       <CardContent>
