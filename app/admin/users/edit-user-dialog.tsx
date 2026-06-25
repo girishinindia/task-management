@@ -113,6 +113,11 @@ export function EditUserDialog({
           <div className="space-y-1.5">
             <Label htmlFor="full_name">Full name</Label>
             <Input id="full_name" {...form.register("full_name")} />
+            {form.formState.errors.full_name ? (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.full_name.message}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
