@@ -2,12 +2,15 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { SessionKeeper } from "@/components/auth/session-keeper";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { CurrentUser } from "@/lib/auth";
 
 export function SiteHeader({ user }: { user: CurrentUser }) {
   return (
     <header className="glass sticky top-0 z-30 border-b border-border/60">
+      {/* Silently refreshes the access token so active users aren't logged out. */}
+      <SessionKeeper />
       <div className="container flex h-14 items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2.5">
