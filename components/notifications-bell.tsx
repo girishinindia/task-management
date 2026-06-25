@@ -42,6 +42,11 @@ interface NotificationRow {
 
 const POLL_MS = 30 * 1000;
 
+// Long-lived SSE pins a DB connection per open tab, which exhausts a shared,
+// connection-limited database. OFF by default — the bell polls instead. Set
+// NEXT_PUBLIC_ENABLE_SSE=true only on infra that can hold persistent streams.
+const SSE_ENABLED = process.env.NEXT_PUBLIC_ENABLE_SSE === "true";
+
 function iconForType(type: string) {
   if (type === "task_assigned") return UserPlus2;
   if (type === "task_transferred") return ArrowRightLeft;
@@ -112,7 +117,8 @@ export function NotificationsBell() {
     }
   }, []);
 
-  // First load + SSE subscription. Falls back to 30s polling if SSE drops.
+  // First load, then either poll (default) or — when explicitly enabled —
+  // subscribe via SSE with polling fallback.
   useEffect(() => {
     refresh();
 
@@ -128,6 +134,12 @@ export function NotificationsBell() {
         clearInterval(fallback);
         fallback = null;
       }
+    }
+
+    // Default: poll only. Avoids pinning a DB connection per open tab via SSE.
+    if (!SSE_ENABLED) {
+      startFallback();
+      return () => stopFallback();
     }
 
     try {

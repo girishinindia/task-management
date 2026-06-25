@@ -188,6 +188,10 @@ export default async function TaskDetailPage({
           user_id: a.user_id,
           full_name: a.full_name,
           email: a.email,
+          is_admin:
+            a.role === "admin" ||
+            a.project_role === "admin" ||
+            a.is_super_admin,
         }))}
       />
 

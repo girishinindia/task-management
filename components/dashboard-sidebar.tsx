@@ -116,6 +116,10 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
               key={it.href}
               href={it.href}
               title={it.label}
+              // Don't prefetch every section on load — each prefetch is a full
+              // server render that opens DB connections; firing them all at once
+              // strains a shared, connection-limited database.
+              prefetch={false}
               className={cn(
                 "group relative flex items-center gap-3 rounded-xl px-2 py-2 text-sm font-medium transition-all lg:px-3",
                 active

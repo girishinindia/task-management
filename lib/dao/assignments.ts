@@ -14,6 +14,10 @@ export interface AssigneeRow {
   full_name: string;
   email: string;
   role: "admin" | "user";
+  /** The assignee's role in THIS task's project ('admin' | 'member' | null). */
+  project_role: "admin" | "member" | null;
+  /** Whether the assignee is a workspace super admin. */
+  is_super_admin: boolean;
   assigned_at: Date;
   assigned_by: string | null;
 }
@@ -38,9 +42,14 @@ export async function listAssigneesForTask(
 ): Promise<AssigneeRow[]> {
   return sql<AssigneeRow[]>`
     select a.task_id, a.user_id, u.full_name, u.email::text as email, u.role,
+           pm.role as project_role,
+           coalesce(u.is_super_admin, false) as is_super_admin,
            a.assigned_at, a.assigned_by
       from task.task_assignments a
       join task.users u on u.id = a.user_id
+      join task.tasks tk on tk.id = a.task_id
+      left join task.project_members pm
+        on pm.user_id = a.user_id and pm.project_id = tk.project_id
      where a.task_id = ${taskId}::uuid
      order by a.assigned_at asc
   `;
@@ -53,9 +62,14 @@ export async function listAssigneesForTasks(
   if (taskIds.length === 0) return {};
   const rows = await sql<AssigneeRow[]>`
     select a.task_id, a.user_id, u.full_name, u.email::text as email, u.role,
+           pm.role as project_role,
+           coalesce(u.is_super_admin, false) as is_super_admin,
            a.assigned_at, a.assigned_by
       from task.task_assignments a
       join task.users u on u.id = a.user_id
+      join task.tasks tk on tk.id = a.task_id
+      left join task.project_members pm
+        on pm.user_id = a.user_id and pm.project_id = tk.project_id
      where a.task_id = any(${taskIds}::uuid[])
      order by a.assigned_at asc
   `;

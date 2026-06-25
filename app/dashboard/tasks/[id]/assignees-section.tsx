@@ -15,11 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import { AssigneePicker } from "@/components/users/assignee-picker";
 import { UserAvatar } from "@/components/users/user-avatar";
+import { Badge } from "@/components/ui/badge";
 
 export interface AssigneeLite {
   user_id: string;
   full_name: string;
   email: string;
+  /** Show an "Admin" badge — set when the assignee is a project/workspace/super admin. */
+  is_admin?: boolean;
 }
 
 export function AssigneesSection({
@@ -105,7 +108,17 @@ export function AssigneesSection({
                 size="sm"
               />
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-medium">{a.full_name}</span>
+                <span className="flex items-center gap-1.5 truncate font-medium">
+                  {a.full_name}
+                  {a.is_admin ? (
+                    <Badge
+                      variant="secondary"
+                      className="h-4 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                    >
+                      Admin
+                    </Badge>
+                  ) : null}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">
                   {a.email}
                 </span>
