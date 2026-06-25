@@ -3,6 +3,7 @@ import { taskCreateSchema } from "@/lib/schemas/tasks";
 import { createTask } from "@/lib/dao/tasks";
 import { findInvalidAssignees } from "@/lib/dao/assignments";
 import {
+  canCreateTasks,
   canManageProject,
   findNonMembers,
   getProject,
@@ -33,13 +34,22 @@ export async function POST(req: Request) {
     );
   }
 
-  // Only a workspace admin or a project admin of the chosen project may create.
+  // Task creation is restricted to workspace admins and super admins.
+  if (!(await canCreateTasks(me.userId, me.role))) {
+    return apiError(
+      "forbidden",
+      "Only a workspace admin or super admin can create tasks.",
+      403
+    );
+  }
+
   const project = await getProject(parsed.data.project_id);
   if (!project) return apiError("not_found", "Project not found", 404);
+  // Workspace admins still create within a project they belong to.
   if (!(await canManageProject(me.userId, me.role, parsed.data.project_id))) {
     return apiError(
       "forbidden",
-      "Only a project admin (or workspace admin) can create tasks in this project.",
+      "You can only create tasks in a project you belong to.",
       403
     );
   }

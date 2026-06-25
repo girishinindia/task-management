@@ -112,6 +112,18 @@ export async function isSuperAdmin(userId: string): Promise<boolean> {
   return rows[0]?.is_super_admin ?? false;
 }
 
+/** Who may CREATE tasks: super admins, workspace admins, and project admins —
+ *  i.e. anyone who administers at least one project. Regular members (users who
+ *  are not an admin of any project) cannot create tasks. Mirrors the rule that
+ *  drives the "New task" affordances, so the button, the /tasks/new page, and
+ *  the API all agree. */
+export async function canCreateTasks(
+  userId: string,
+  role: UserRole
+): Promise<boolean> {
+  return hasManageableProject(userId, role);
+}
+
 /** Active super-admin user ids — recipients for project requests. */
 export async function listSuperAdminIds(): Promise<string[]> {
   const rows = await sql<{ id: string }[]>`

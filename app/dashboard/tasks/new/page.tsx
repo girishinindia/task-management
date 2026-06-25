@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { listManageableProjects } from "@/lib/dao/projects";
+import { canCreateTasks, listManageableProjects } from "@/lib/dao/projects";
 import { Button } from "@/components/ui/button";
 import { TaskForm } from "../task-form";
 
@@ -9,9 +10,12 @@ export const metadata = { title: "New task" };
 export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage() {
-  // Anyone signed in may reach this, but you can only create tasks in a
-  // project you administer (workspace admins administer every project).
   const me = await requireUser();
+  // Only workspace admins and super admins can create tasks — send everyone
+  // else back to the dashboard instead of showing the form.
+  if (!(await canCreateTasks(me.userId, me.role))) {
+    redirect("/dashboard");
+  }
   const projects = await listManageableProjects(me.userId, me.role);
 
   return (
