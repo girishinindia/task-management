@@ -76,8 +76,13 @@ export async function setAuthCookies(input: {
 
 export async function clearAuthCookies() {
   const jar = cookies();
-  jar.delete(ACCESS_COOKIE);
-  jar.delete(REFRESH_COOKIE);
+  // Overwrite each cookie with an already-expired value that MATCHES the
+  // attributes it was set with (path / httpOnly / secure / sameSite). A bare
+  // delete() omits those, and browsers only drop a cookie when the expiring
+  // Set-Cookie matches — otherwise access_token / refresh_token can linger
+  // after logout. Max-Age 0 + empty value removes them.
+  jar.set(ACCESS_COOKIE, "", cookieOptions(0));
+  jar.set(REFRESH_COOKIE, "", cookieOptions(0));
 }
 
 export interface CurrentUser {
