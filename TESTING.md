@@ -179,10 +179,10 @@ Create all of these as **Admin** (Window A). Each task now belongs to a **Projec
 
 ### Flow 7 — Attachments (file + URL)
 
-1. **Window B (Priya)** → open **Task 1** → **Attachments** section → **upload a file** (e.g. a small PNG or PDF, under 50 MB). ✅ The file uploads and shows with a working link served from the Bunny CDN (`cdn.growupmore.com`). Files are public links (token authentication is off).
+1. **Window B (Priya)** → open **Task 1** → **Attachments** section → **upload a file** (e.g. a small PNG or PDF, under 10 MB). ✅ The file uploads and shows with a working link served from the Bunny CDN (`cdn.growupmore.com`). Files are public links (token authentication is off).
 2. Add a **URL link** attachment: paste `https://www.figma.com` with label `Design file`. ✅ The link appears with its label and opens in a new tab.
 3. **Allowed types incl. ZIP.** Upload a **.zip** file. ✅ It's accepted — acceptance is by MIME *or* file extension, so ZIPs work even when the browser reports an odd type like `application/x-zip-compressed` or `application/octet-stream`. Images, video, PDF, Office docs, and plain text work the same way.
-4. Try a genuinely disallowed type (e.g. a `.exe`), an oversized file (>50 MB), and an invalid URL (`not-a-url`). ✅ Each is rejected with a clear message.
+4. Try a genuinely disallowed type (e.g. a `.exe`), an oversized file (>10 MB), and an invalid URL (`not-a-url`). ✅ Each is rejected with a clear message.
 5. Remove an attachment **you uploaded**. ✅ It disappears. (A regular user only sees the delete icon on attachments they added; admins can remove any.)
 
 ### Flow 8 — Notifications (bell, list, live SSE)

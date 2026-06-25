@@ -100,7 +100,7 @@ export const ALLOWED_ATTACHMENT_MIME = new Set<string>([
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
-export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50 MB
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
 
 /**
  * Allowed file extensions — a fallback for when the browser reports a vague or

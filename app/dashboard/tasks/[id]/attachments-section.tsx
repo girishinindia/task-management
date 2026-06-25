@@ -40,7 +40,7 @@ export interface AttachmentsSectionProps {
   isAdmin: boolean;
 }
 
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = 10 * 1024 * 1024;
 
 function humanBytes(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -79,7 +79,7 @@ export function AttachmentsSection(props: AttachmentsSectionProps) {
 
   async function uploadOne(file: File) {
     if (file.size > MAX_BYTES) {
-      toast.error(`${file.name} is over the 50 MB limit`);
+      toast.error(`${file.name} is over the 10 MB limit`);
       return;
     }
     setUploading(true);
@@ -269,7 +269,7 @@ export function AttachmentsSection(props: AttachmentsSectionProps) {
           </div>
         ) : (
           <>
-            Drag files here or click Upload. Max 50 MB · images, video,
+            Drag files here or click Upload. Max 10 MB · images, video,
             PDF, Office docs, ZIP, plain text.
           </>
         )}
