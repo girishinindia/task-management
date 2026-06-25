@@ -184,6 +184,7 @@ export default async function TaskDetailPage({
         projectId={task.project_id}
         dueDate={task.due_date}
         editable={editable}
+        canSetAdmin={isSuper}
         initialAssignees={assignees.map((a) => ({
           user_id: a.user_id,
           full_name: a.full_name,

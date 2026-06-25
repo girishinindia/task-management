@@ -1,6 +1,11 @@
 import { requireUser } from "@/lib/auth";
 import { getTask } from "@/lib/dao/tasks";
-import { canManageProject, findNonMembers } from "@/lib/dao/projects";
+import {
+  addMember,
+  canManageProject,
+  findNonMembers,
+  isSuperAdmin,
+} from "@/lib/dao/projects";
 import {
   findInvalidAssignees,
   listAssigneesForTask,
@@ -104,6 +109,23 @@ export async function POST(
     user_ids: parsed.data.user_ids,
     assigned_by: me.userId,
   });
+
+  // Optional: designate which assignees are project admins vs members. Changing
+  // the admin tier is super-admin-only (consistent with member management), so
+  // only apply role changes when the actor is a super admin.
+  if (parsed.data.admin_ids !== undefined) {
+    if (await isSuperAdmin(me.userId)) {
+      const adminSet = new Set(parsed.data.admin_ids);
+      for (const uid of parsed.data.user_ids) {
+        await addMember({
+          project_id: task.project_id,
+          user_id: uid,
+          role: adminSet.has(uid) ? "admin" : "member",
+          added_by: me.userId,
+        });
+      }
+    }
+  }
 
   await recordAudit({
     action: "task.assignees_set",

@@ -31,6 +31,7 @@ export function AssigneesSection({
   dueDate,
   initialAssignees,
   editable,
+  canSetAdmin = false,
 }: {
   taskId: string;
   /** Scope the picker to this project's members. */
@@ -38,12 +39,17 @@ export function AssigneesSection({
   dueDate: string | null;
   initialAssignees: AssigneeLite[];
   editable: boolean;
+  /** Whether the viewer may set each assignee's admin/member role (super admin). */
+  canSetAdmin?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftIds, setDraftIds] = useState<string[]>(
     initialAssignees.map((a) => a.user_id)
+  );
+  const [draftAdminIds, setDraftAdminIds] = useState<string[]>(
+    initialAssignees.filter((a) => a.is_admin).map((a) => a.user_id)
   );
 
   async function save() {
@@ -52,7 +58,16 @@ export function AssigneesSection({
       const res = await fetch(`/api/tasks/${taskId}/assignments`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user_ids: draftIds }),
+        body: JSON.stringify({
+          user_ids: draftIds,
+          ...(canSetAdmin
+            ? {
+                admin_ids: draftAdminIds.filter((id) =>
+                  draftIds.includes(id)
+                ),
+              }
+            : {}),
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
@@ -83,6 +98,9 @@ export function AssigneesSection({
             size="sm"
             onClick={() => {
               setDraftIds(initialAssignees.map((a) => a.user_id));
+              setDraftAdminIds(
+                initialAssignees.filter((a) => a.is_admin).map((a) => a.user_id)
+              );
               setOpen(true);
             }}
           >
@@ -135,6 +153,9 @@ export function AssigneesSection({
             <DialogDescription>
               Pick everyone responsible for this task. Users marked inactive on
               the due date are disabled.
+              {canSetAdmin
+                ? " Toggle Admin / Member on each selected person to set their project role."
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <AssigneePicker
@@ -142,6 +163,15 @@ export function AssigneesSection({
             onChange={setDraftIds}
             dueDate={dueDate}
             projectId={projectId}
+            adminIds={draftAdminIds}
+            onToggleAdmin={(id) =>
+              setDraftAdminIds((prev) =>
+                prev.includes(id)
+                  ? prev.filter((x) => x !== id)
+                  : [...prev, id]
+              )
+            }
+            showAdmin={canSetAdmin}
           />
           <DialogFooter>
             <Button

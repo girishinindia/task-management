@@ -32,6 +32,12 @@ export interface AssigneePickerProps {
   projectId?: string | null;
   /** Optional: pre-fetched users. If omitted, fetched from /api/users. */
   initialUsers?: AssigneeOption[];
+  /** Subset of `value` that are admins (project admins). */
+  adminIds?: string[];
+  /** Toggle a selected user's admin flag. */
+  onToggleAdmin?: (id: string) => void;
+  /** Show the per-assignee Admin toggle on selected chips. */
+  showAdmin?: boolean;
   disabled?: boolean;
   /** Optional class for the outer wrapper */
   className?: string;
@@ -43,6 +49,9 @@ export function AssigneePicker({
   dueDate,
   projectId,
   initialUsers,
+  adminIds,
+  onToggleAdmin,
+  showAdmin = false,
   disabled,
   className,
 }: AssigneePickerProps) {
@@ -79,6 +88,7 @@ export function AssigneePicker({
   }, [dueDate, projectId]);
 
   const selectedSet = useMemo(() => new Set(value), [value]);
+  const adminSet = useMemo(() => new Set(adminIds ?? []), [adminIds]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -205,6 +215,26 @@ export function AssigneePicker({
                 size="xs"
               />
               <span className="font-medium">{u.full_name}</span>
+              {showAdmin && onToggleAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleAdmin(u.id)}
+                  aria-pressed={adminSet.has(u.id)}
+                  title={
+                    adminSet.has(u.id)
+                      ? "Project admin — click to make member"
+                      : "Member — click to make admin"
+                  }
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors",
+                    adminSet.has(u.id)
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {adminSet.has(u.id) ? "Admin" : "Member"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => toggle(u.id)}
