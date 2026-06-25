@@ -188,10 +188,9 @@ export default async function TaskDetailPage({
           user_id: a.user_id,
           full_name: a.full_name,
           email: a.email,
-          is_admin:
-            a.role === "admin" ||
-            a.project_role === "admin" ||
-            a.is_super_admin,
+          // "Admin" of THIS task's project — a project admin (or a super
+          // admin). A workspace admin who is only a member here is not badged.
+          is_admin: a.project_role === "admin" || a.is_super_admin,
         }))}
       />
 
