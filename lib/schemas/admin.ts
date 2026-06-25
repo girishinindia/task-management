@@ -10,6 +10,23 @@ const password = z
   .max(100, "Password is too long")
   .regex(/[0-9]/, "Password must contain at least one number");
 
+/** A real person's name: starts with a letter; only letters, spaces, hyphens,
+ *  apostrophes, and periods; at least two letters. \p{L} covers non-Latin
+ *  scripts and accents. Rejects junk like "(*&^%^&*OP:" or "12345". */
+const fullName = z
+  .string()
+  .trim()
+  .min(2, "Please enter a real name")
+  .max(100, "Name is too long")
+  .regex(
+    /^[\p{L}][\p{L} .'-]*$/u,
+    "Name can only contain letters, spaces, hyphens, apostrophes, and periods"
+  )
+  .refine(
+    (v) => (v.match(/\p{L}/gu)?.length ?? 0) >= 2,
+    "Please enter a real name"
+  );
+
 export const adminSetPasswordSchema = z.object({
   password,
 });
@@ -19,7 +36,7 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const adminCreateUserSchema = z.object({
-  full_name: z.string().trim().min(2).max(100),
+  full_name: fullName,
   email: z.string().trim().email().toLowerCase(),
   password,
   role: z.enum(["admin", "user"]).default("user"),
@@ -27,7 +44,7 @@ export const adminCreateUserSchema = z.object({
 
 export const adminUpdateUserSchema = z
   .object({
-    full_name: z.string().trim().min(2).max(100).optional(),
+    full_name: fullName.optional(),
     role: z.enum(["admin", "user"]).optional(),
     is_active: z.boolean().optional(),
   })
