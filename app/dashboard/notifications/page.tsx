@@ -32,6 +32,7 @@ import {
 } from "@/lib/notification-types";
 import { MarkAllReadButton } from "./mark-all-read-button";
 import { NotificationsFilters } from "./notifications-filters";
+import { NotificationLink } from "./notification-link";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Notifications" };
@@ -223,8 +224,10 @@ export default async function NotificationsPage({
                   const Icon = iconForType(n.type);
                   return (
                     <li key={n.id}>
-                      <Link
-                        href={n.link ?? "#"}
+                      <NotificationLink
+                        id={n.id}
+                        href={n.link}
+                        isRead={n.is_read}
                         className={cn(
                           "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
                           !n.is_read && "bg-primary/10"
@@ -266,7 +269,7 @@ export default async function NotificationsPage({
                         {!n.is_read ? (
                           <CheckCheck className="mt-1 h-3.5 w-3.5 text-muted-foreground" />
                         ) : null}
-                      </Link>
+                      </NotificationLink>
                     </li>
                   );
                 })}

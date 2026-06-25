@@ -117,6 +117,22 @@ export function NotificationsBell() {
     }
   }, []);
 
+  // When a notification is marked read elsewhere (e.g. clicking a row on the
+  // Notifications page), drop the unread count and flag that row here too.
+  useEffect(() => {
+    function onRead(e: Event) {
+      const id = (e as CustomEvent<{ id?: number }>).detail?.id;
+      setUnread((u) => Math.max(0, u - 1));
+      if (typeof id === "number") {
+        setRows((rs) =>
+          rs.map((r) => (r.id === id ? { ...r, is_read: true } : r))
+        );
+      }
+    }
+    window.addEventListener("notification:read", onRead);
+    return () => window.removeEventListener("notification:read", onRead);
+  }, []);
+
   // First load, then either poll (default) or — when explicitly enabled —
   // subscribe via SSE with polling fallback.
   useEffect(() => {
